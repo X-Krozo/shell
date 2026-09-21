@@ -69,6 +69,19 @@ Scope {
             return lock.locked;
         }
 
+        function lockAndSuspend(): void {
+            lock.locked = true;
+            suspendTimer.restart();
+        }
+
         target: "lock"
+    }
+
+    Timer {
+        id: suspendTimer
+
+        interval: 1500
+        repeat: false
+        onTriggered: Quickshell.execDetached(["systemctl", "suspend"])
     }
 }

@@ -52,6 +52,7 @@ Item {
         active: root.shouldBeActive || root.visible
 
         sourceComponent: Content {
+            screen: root.screen
             screenState: root.screenState
             panels: root.panels
             maxHeight: root.maxHeight
