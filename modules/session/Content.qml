@@ -20,6 +20,27 @@ Item {
     implicitWidth: layout.implicitWidth
     implicitHeight: layout.implicitHeight
 
+    // Tooltip seat: height the panel blob extends upward while a tooltip
+    // shows. Pill size is fixed (measurer-based), so this never loops.
+    // Plain property (not readonly): the Behavior below needs to assign it.
+    property real tipExtent: layout.hoveredName.length > 0 ? tip.implicitHeight + 14 : 0
+
+    Behavior on tipExtent {
+        Anim {}
+    }
+
+    // Menu close strands nothing: forget hover state with it.
+    Connections {
+        target: root.screenState
+
+        function onSessionChanged() {
+            if (!root.screenState.session) {
+                layout.hoveredName = "";
+                gifHover.tip = "";
+            }
+        }
+    }
+
     Column {
         id: layout
 
@@ -28,28 +49,6 @@ Item {
         spacing: Tokens.spacing.large
 
         property string hoveredName: ""
-
-        // Gap watcher: hovering layout dead space (spacing between buttons)
-        // clears a stale tooltip. Hover reaches every area under the cursor,
-        // clicks pass through (NoButton).
-        MouseArea {
-            x: 0
-            y: 0
-            width: layout.width
-            height: layout.height
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-
-            onPositionChanged: mouse => {
-                const items = [lock, suspend, logout, gifImg, shutdown, reboot, hibernate];
-                for (const it of items) {
-                    const p = it.mapFromItem(parent, mouse.x, mouse.y);
-                    if (p.x >= 0 && p.y >= 0 && p.x < it.width && p.y < it.height)
-                        return;
-                }
-                layout.hoveredName = "";
-            }
-        }
 
         SessionButton {
             id: lock
@@ -115,6 +114,7 @@ Item {
             anchors.fill: parent
             radius: 0
             showHoverBackground: false
+            showRipple: false
 
             property string tip: ""
 
@@ -122,8 +122,13 @@ Item {
             onContainsMouseChanged: {
                 if (containsMouse) {
                     uptimeProc.running = true;
-                } else if (tip !== "" && parent.parent.hoveredName === tip) {
-                    parent.parent.hoveredName = "";
+                } else {
+                    // Never strand the uptime text: clear it on leave even
+                    // if a refresh landed mid-hover, then forget the stamp.
+                    const h = parent.parent.hoveredName;
+                    if ((tip !== "" && h === tip) || /^\d\d:\d\d:\d\d$/.test(h))
+                        parent.parent.hoveredName = "";
+                    tip = "";
                 }
             }
 
@@ -183,7 +188,11 @@ Item {
     // background, glass finish (restrained top sheen, hairline light
     // border). Only fades/scales in.
     StyledRect {
+        id: tip
+
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: layout.top
+        anchors.bottomMargin: 4
 
         implicitWidth: tipMeasurer.implicitWidth + Tokens.padding.extraSmall * 2
         implicitHeight: tipMeasurer.implicitHeight + Tokens.padding.medium * 2
@@ -192,7 +201,7 @@ Item {
         opacity: layout.hoveredName.length > 0 ? 1 : 0
         scale: layout.hoveredName.length > 0 ? 1 : 0.6
         radius: Tokens.rounding.large
-        transformOrigin: Item.Top
+        transformOrigin: Item.Bottom
 
         gradient: Gradient {
             orientation: Gradient.Vertical
@@ -212,9 +221,6 @@ Item {
                 color: Qt.rgba(1, 1, 1, 0.0)
             }
         }
-        border.width: 1
-        border.color: Qt.rgba(1, 1, 1, 0.3)
-
         Behavior on opacity {
             Anim {}
         }

@@ -222,6 +222,9 @@ StyledWindow {
             deformAmount: 0.2
             x: panels.sessionWrapper.x + panels.session.x + geometry.insetLeft(root.borderThickness)
             implicitWidth: panels.session.width
+            // Seat for the hover tooltip: grows upward, buttons never move.
+            y: panels.sessionWrapper.y + panels.session.y + geometry.insetTop(root.borderThickness) - panels.session.tipExtent
+            implicitHeight: panels.session.height + panels.session.tipExtent
         }
 
         PanelBg {

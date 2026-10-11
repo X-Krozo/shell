@@ -9,12 +9,13 @@ MouseArea {
 
     property bool disabled
     property bool showHoverBackground: true
+    property bool showRipple: true
     property bool manualPressOverride
     property bool manualHoverOverride
     readonly property alias rect: base
 
     property bool shapeMorph
-    property real stateOpacity: containsMouse || manualHoverOverride ? 0.08 : 0
+    property real stateOpacity: (containsMouse && showHoverBackground) || manualHoverOverride ? 0.08 : 0
 
     property real pressX: width / 2
     property real pressY: height / 2
@@ -59,7 +60,7 @@ MouseArea {
     cursorShape: disabled ? undefined : Qt.PointingHandCursor
     hoverEnabled: true
 
-    onPressed: e => press(e.x, e.y)
+    onPressed: e => { if (showRipple) press(e.x, e.y); }
 
     onPressedChanged: {
         if (!(pressed || manualPressOverride) && !rippleAnim.running && circle.opacity > 0)
