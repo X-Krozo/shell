@@ -20,7 +20,7 @@ jobs:
   lint-qml:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
+      image: ghcr.io/x-krozo/shell-arch-env:latest
 
     steps:
       - name: Checkout source
@@ -57,7 +57,7 @@ jobs:
   lint-cpp:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/${{ github.repository_owner }}/shell-arch-env:latest
+      image: ghcr.io/x-krozo/shell-arch-env:latest
 
     steps:
       - name: Checkout source

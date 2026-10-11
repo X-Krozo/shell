@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/${{ github.repository_owner }}/shell-arch-env
+  IMAGE: ghcr.io/x-krozo/shell-arch-env
 
 jobs:
   build-image:
