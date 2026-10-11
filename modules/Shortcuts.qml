@@ -10,6 +10,22 @@ Scope {
     id: root
 
     property bool launcherInterrupted
+    // Debounce for Super-tap toggles: duplicate release deliveries would
+    // toggle twice (net zero) and leave animations reversing mid-flight
+    property double lastWsToggleAt: 0
+
+    Timer {
+        id: chordWatch
+
+        interval: 700
+        // App launches materialize after release: if window state changed
+        // since the press, it was a chord — revert our optimistic toggle
+        onTriggered: {
+            const screenState = ShellState.forActive();
+            if (screenState && screenState.launcher && Hypr.superHadChord())
+                screenState.launcher = false;
+        }
+    }
     readonly property bool hasFullscreen: Hypr.focusedWorkspace?.toplevels.values.some(t => t.lastIpcObject.fullscreen > 1) ?? false
 
     // qmllint disable unresolved-type
@@ -62,15 +78,28 @@ Scope {
     // qmllint disable unresolved-type
     CustomShortcut {
         // qmllint enable unresolved-type
-        name: "launcher"
-        description: "Toggle launcher"
-        onPressed: root.launcherInterrupted = false
-        onReleased: {
-            if (!root.launcherInterrupted && !root.hasFullscreen) {
-                const screenState = ShellState.forActive();
-                screenState.launcher = !screenState.launcher;
-            }
+        name: "workspaceNumbers"
+        description: "Hold Super for workspace numbers, tap to toggle launcher"
+        onPressed: {
             root.launcherInterrupted = false;
+            Hypr.superPressed();
+        }
+        onReleased: {
+            if (!Hypr.superPressedCycle)
+                return;
+            const quick = !Hypr.superHeldTooLong;
+            const chord = Hypr.superHadChord();
+            Hypr.superReleased();
+            if (quick && !chord && !root.launcherInterrupted && !root.hasFullscreen) {
+                if (Date.now() - root.lastWsToggleAt < 350)
+                    return;
+                root.lastWsToggleAt = Date.now();
+                const screenState = ShellState.forActive();
+                const wasOpen = screenState.launcher;
+                screenState.launcher = !wasOpen;
+                if (!wasOpen)
+                    chordWatch.restart();
+            }
         }
     }
 

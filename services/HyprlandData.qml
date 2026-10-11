@@ -84,8 +84,13 @@ Singleton {
                 let tempWinByAddress = {};
                 for (var i = 0; i < parsed.length; ++i) {
                     const win = parsed[i];
-                    if (win && win.address)
-                        tempWinByAddress[win.address] = win;
+                    if (win && win.address) {
+                        const raw = String(win.address);
+                        const stripped = raw.replace(/^0x/i, "").toLowerCase();
+                        tempWinByAddress[raw] = win;
+                        tempWinByAddress[stripped] = win;
+                        tempWinByAddress["0x" + stripped] = win;
+                    }
                 }
                 root.windowByAddress = tempWinByAddress;
                 root.addresses = parsed.map(win => win.address);

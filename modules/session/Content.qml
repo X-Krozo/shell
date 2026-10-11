@@ -2,6 +2,8 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
 import Caelestia
 import Caelestia.Config
 import Caelestia.Services
@@ -10,29 +12,60 @@ import qs.components.controls
 import qs.services
 import qs.utils
 
-Column {
+Item {
     id: root
 
     required property ScreenState screenState
 
-    padding: Tokens.padding.large
-    rightPadding: CUtils.clamp(padding - Config.border.thickness, 0, padding)
-    spacing: Tokens.spacing.large
+    implicitWidth: layout.implicitWidth
+    implicitHeight: layout.implicitHeight
 
-    SessionButton {
-        id: logout
+    Column {
+        id: layout
 
-        icon: Config.session.icons.logout
-        command: Config.session.commands.logout
+        padding: Tokens.padding.large
+        rightPadding: CUtils.clamp(padding - Config.border.thickness, 0, padding)
+        spacing: Tokens.spacing.large
 
-        KeyNavigation.down: shutdown
+        property string hoveredName: ""
+
+        // Gap watcher: hovering layout dead space (spacing between buttons)
+        // clears a stale tooltip. Hover reaches every area under the cursor,
+        // clicks pass through (NoButton).
+        MouseArea {
+            x: 0
+            y: 0
+            width: layout.width
+            height: layout.height
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+
+            onPositionChanged: mouse => {
+                const items = [lock, suspend, logout, gifImg, shutdown, reboot, hibernate];
+                for (const it of items) {
+                    const p = it.mapFromItem(parent, mouse.x, mouse.y);
+                    if (p.x >= 0 && p.y >= 0 && p.x < it.width && p.y < it.height)
+                        return;
+                }
+                layout.hoveredName = "";
+            }
+        }
+
+        SessionButton {
+            id: lock
+
+        icon: "lock"
+        tooltip: "Lock"
+        command: ["qs", "-c", "caelestia", "ipc", "call", "lock", "lock"]
+
+        KeyNavigation.down: suspend
 
         Component.onCompleted: forceActiveFocus()
 
         Connections {
             function onLauncherChanged(): void {
                 if (!root.screenState.launcher)
-                    logout.forceActiveFocus();
+                    lock.forceActiveFocus();
             }
 
             target: root.screenState
@@ -40,16 +73,30 @@ Column {
     }
 
     SessionButton {
-        id: shutdown
+        id: suspend
 
-        icon: Config.session.icons.shutdown
-        command: Config.session.commands.shutdown
+        icon: "bedtime"
+        tooltip: "Sleep"
+        command: ["suspend"]
 
-        KeyNavigation.up: logout
-        KeyNavigation.down: hibernate
+        KeyNavigation.up: lock
+        KeyNavigation.down: logout
+    }
+
+    SessionButton {
+        id: logout
+
+        icon: Config.session.icons.logout
+        tooltip: "Log out"
+        command: Config.session.commands.logout
+
+        KeyNavigation.up: suspend
+        KeyNavigation.down: shutdown
     }
 
     AnimatedImage {
+        id: gifImg
+
         width: Tokens.sizes.session.button
         height: Tokens.sizes.session.button
         sourceSize.width: width * ((QsWindow.window as QsWindow)?.devicePixelRatio ?? 1)
@@ -59,15 +106,54 @@ Column {
         speed: Config.general.sessionGifSpeed
         source: Paths.absolutePath(Config.paths.sessionGif)
         fillMode: AnimatedImage.PreserveAspectFit
+
+        // Click toggles the OSD sliders; hover shows uptime as DD:HH:MM.
+        // No hover wash on the artwork itself.
+        StateLayer {
+            id: gifHover
+
+            anchors.fill: parent
+            radius: 0
+            showHoverBackground: false
+
+            property string tip: ""
+
+            onClicked: root.screenState.osd = !root.screenState.osd
+            onContainsMouseChanged: {
+                if (containsMouse) {
+                    uptimeProc.running = true;
+                } else if (tip !== "" && parent.parent.hoveredName === tip) {
+                    parent.parent.hoveredName = "";
+                }
+            }
+
+            Process {
+                id: uptimeProc
+
+                command: ["cat", "/proc/uptime"]
+                stdout: StdioCollector {
+                    onStreamFinished: {
+                        const s = Math.floor(parseFloat(text.split(" ")[0]) || 0);
+                        const d = String(Math.floor(s / 86400)).padStart(2, "0");
+                        const h = String(Math.floor(s % 86400 / 3600)).padStart(2, "0");
+                        const m = String(Math.floor(s % 3600 / 60)).padStart(2, "0");
+                        gifHover.tip = `${d}:${h}:${m}`;
+                        if (gifHover.containsMouse)
+                            gifHover.parent.parent.hoveredName = gifHover.tip;
+                    }
+                }
+            }
+        }
     }
 
     SessionButton {
-        id: hibernate
+        id: shutdown
 
-        icon: Config.session.icons.hibernate
-        command: Config.session.commands.hibernate
+        icon: Config.session.icons.shutdown
+        tooltip: "Shut down"
+        command: Config.session.commands.shutdown
 
-        KeyNavigation.up: shutdown
+        KeyNavigation.up: logout
         KeyNavigation.down: reboot
     }
 
@@ -75,9 +161,87 @@ Column {
         id: reboot
 
         icon: Config.session.icons.reboot
+        tooltip: "Restart"
         command: Config.session.commands.reboot
 
-        KeyNavigation.up: hibernate
+        KeyNavigation.up: shutdown
+        KeyNavigation.down: hibernate
+    }
+
+    SessionButton {
+        id: hibernate
+
+        icon: Config.session.icons.hibernate
+        tooltip: "Hibernate"
+        command: Config.session.commands.hibernate
+
+        KeyNavigation.up: reboot
+    }
+    }
+
+    // In-panel tooltip: fixed slot at the top (panel never moves), panel
+    // background, glass finish (restrained top sheen, hairline light
+    // border). Only fades/scales in.
+    StyledRect {
+        anchors.horizontalCenter: parent.horizontalCenter
+
+        implicitWidth: tipMeasurer.implicitWidth + Tokens.padding.extraSmall * 2
+        implicitHeight: tipMeasurer.implicitHeight + Tokens.padding.medium * 2
+
+        visible: opacity > 0
+        opacity: layout.hoveredName.length > 0 ? 1 : 0
+        scale: layout.hoveredName.length > 0 ? 1 : 0.6
+        radius: Tokens.rounding.large
+        transformOrigin: Item.Top
+
+        gradient: Gradient {
+            orientation: Gradient.Vertical
+
+            GradientStop {
+                position: 0
+                color: Qt.rgba(1, 1, 1, 0.13)
+            }
+
+            GradientStop {
+                position: 0.45
+                color: Qt.rgba(1, 1, 1, 0.03)
+            }
+
+            GradientStop {
+                position: 1
+                color: Qt.rgba(1, 1, 1, 0.0)
+            }
+        }
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.3)
+
+        Behavior on opacity {
+            Anim {}
+        }
+
+        Behavior on scale {
+            Anim {
+                type: Anim.StandardSmall
+            }
+        }
+
+        // Hidden measurer on the longest label: width never jumps.
+        StyledText {
+            id: tipMeasurer
+
+            visible: false
+            text: "Shut down"
+            font: Tokens.font.body.builders.medium.scale(0.75).build()
+        }
+
+        StyledText {
+            id: tipLabel
+
+            anchors.centerIn: parent
+            text: layout.hoveredName
+            color: Colours.palette.m3onSurface
+            font: Tokens.font.body.builders.medium.scale(0.75).build()
+        }
     }
 
     component SessionButton: IconButton {
@@ -88,6 +252,19 @@ Column {
         function exec(): void {
             if (!SessionManager.exec(command))
                 Quickshell.execDetached(command);
+        }
+
+        // Keyboard focus follows the mouse: hovering a button focuses it,
+        // so Enter always triggers the button under the cursor. The shared
+        // tooltip above reads the hovered button via parent (scope-safe).
+        property string tooltip: ""
+        onHoveredChanged: {
+            if (hovered) {
+                forceActiveFocus();
+                parent.hoveredName = tooltip;
+            } else if (tooltip !== "" && parent.hoveredName === tooltip) {
+                parent.hoveredName = "";
+            }
         }
 
         implicitWidth: Tokens.sizes.session.button

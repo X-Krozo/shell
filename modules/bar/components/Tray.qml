@@ -20,6 +20,13 @@ StyledRect {
 
     property bool expanded
 
+    transformOrigin: Item.Center
+    scale: bar.hoveredEntry === "tray" ? 1.06 : 1
+
+    Behavior on scale {
+        Anim {}
+    }
+
     readonly property real nonAnimWidth: {
         if (!horizontal)
             return Tokens.sizes.bar.innerWidth;
@@ -141,6 +148,21 @@ StyledRect {
 
                 Behavior on anchors.rightMargin {
                     Anim {}
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: event => {
+                        if (event.button === Qt.RightButton) {
+                            if (expandIconInner.contextMenu)
+                                expandIconInner.contextMenu.open();
+                        } else {
+                            root.expanded = !root.expanded;
+                        }
+                    }
                 }
             }
         }

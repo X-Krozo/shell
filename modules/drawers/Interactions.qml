@@ -20,6 +20,7 @@ CustomMouseArea {
     required property bool fullscreen
 
     property point dragStart
+    property bool pressedHere
     property bool dashboardShortcutActive
     property bool osdShortcutActive
     property bool utilitiesShortcutActive
@@ -66,7 +67,8 @@ CustomMouseArea {
             if (geometry.barOnLeft && geometry.barContains(x, y))
                 return false;
             const panelWidth = panels.dashboard.width * (1 - panels.dashboard.offsetScale);
-            return x < Math.max(Config.border.minThickness, geometry.insetLeft(Config.border.thickness) + panelWidth) && withinPanelHeight(panels.dashboard, x, y);
+            const edgeThreshold = Math.max(Config.border.minThickness, Config.border.rounding);
+            return x < Math.max(edgeThreshold, geometry.insetLeft(Config.border.thickness) + panelWidth) && withinPanelHeight(panels.dashboard, x, y);
         }
         if (geometry.barOnTop && geometry.barContains(x, y))
             return false;
@@ -84,21 +86,58 @@ CustomMouseArea {
     anchors.fill: parent
     acceptedButtons: fullscreen ? Qt.NoButton : Qt.AllButtons
     hoverEnabled: true
+    propagateComposedEvents: true
+    cursorShape: {
+        // Hand only over entries that actually respond to clicks
+        if (!geometry.barContains(mouseX, mouseY))
+            return Qt.ArrowCursor;
+        return ["logo", "workspaces", "tray", "statusIcons", "power"].includes(bar.entryAt(geometry.axisPos(mouseX, mouseY))) ? Qt.PointingHandCursor : Qt.ArrowCursor;
+    }
 
-    onPressed: event => dragStart = Qt.point(event.x, event.y)
+    onPressed: event => { dragStart = Qt.point(event.x, event.y); pressedHere = true; }
+    onReleased: event => { pressedHere = false; }
+
+    // Click-to-toggle bar popouts: click the icon/area itself; same name already open closes it
+    onClicked: event => {
+        // Ignore clicks that were actually drags (moved more than 5px from press).
+        // Only when the press was seen here; clicks propagated from bar children
+        // carry no local press.
+        if (pressedHere) {
+            const dx = event.x - dragStart.x;
+            const dy = event.y - dragStart.y;
+            if (dx * dx + dy * dy > 25)  // 5px threshold
+                return;
+        }
+
+        // Close OSD when clicking outside OSD area (always, regardless of bar click).
+        // Ignored within the open grace period so the opening gesture can't close it.
+        if (screenState.osd && Date.now() - panels.osd.openedAt > 400 && !inRightPanel(panels.osdWrapper, event.x, event.y)) {
+            screenState.osd = false;
+            return;
+        }
+
+        // Click-to-toggle bar popouts: click the icon/area itself; same name already open closes it
+        if (!geometry.barContains(event.x, event.y))
+            return;
+        const before = (popouts.currentName ?? "") + (popouts.hasCurrent ? "|open" : "|closed");
+        bar.checkPopout(geometry.axisPos(event.x, event.y));
+        if (popouts.hasCurrent && (popouts.currentName ?? "") + "|open" === before) {
+            popouts.hasCurrent = false;
+            bar.closeTray();
+        }
+    }
     onContainsMouseChanged: {
         if (!containsMouse) {
+            bar.hoveredEntry = "";
             // Only hide if not activated by shortcut
             if (!osdShortcutActive) {
-                screenState.osd = false;
+                if (Date.now() - root.panels.osd.openedAt > 400)
+                    screenState.osd = false;
                 root.panels.osd.hovered = false;
             }
 
-            if (!dashboardShortcutActive)
+            if (Config.dashboard.showOnHover && !dashboardShortcutActive)
                 screenState.dashboard = false;
-
-            if (!utilitiesShortcutActive)
-                screenState.utilities = false;
 
             if (!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) {
                 popouts.hasCurrent = false;
@@ -141,17 +180,12 @@ CustomMouseArea {
         }
 
         if (panels.sidebar.offsetScale === 1) {
-            // Show osd on hover
-            const showOsd = inRightPanel(panels.osdWrapper, x, y);
-
-            // Always update visibility based on hover if not in shortcut mode
-            if (!osdShortcutActive) {
-                screenState.osd = showOsd;
-                root.panels.osd.hovered = showOsd;
-            } else if (showOsd) {
-                // If hovering over OSD area while in shortcut mode, transition to hover control
-                osdShortcutActive = false;
-                root.panels.osd.hovered = true;
+            // Show OSD on drag from right edge
+            if (pressed && inRightPanel(panels.osdWrapper, dragStart.x, dragStart.y) && withinPanelHeight(panels.osdWrapper, x, y)) {
+                if (dragX < -Config.sidebar.dragThreshold)
+                    panels.osd.show(true);
+                else if (dragX > Config.sidebar.dragThreshold && Date.now() - panels.osd.openedAt > 400)
+                    screenState.osd = false;
             }
 
             const showSidebar = pressed && dragStart.x > Math.min(width - Config.border.minThickness, geometry.insetLeft(borderThickness) + panels.sidebar.x);
@@ -178,19 +212,15 @@ CustomMouseArea {
                 // Show sidebar on drag if not in session area
                 screenState.sidebar = true;
             }
-        } else {
+} else {
             const outOfSidebar = x < width - panels.sidebar.width * (1 - panels.sidebar.offsetScale);
-            // Show osd on hover
-            const showOsd = outOfSidebar && inRightPanel(panels.osdWrapper, x, y);
 
-            // Always update visibility based on hover if not in shortcut mode
-            if (!osdShortcutActive) {
-                screenState.osd = showOsd;
-                root.panels.osd.hovered = showOsd;
-            } else if (showOsd) {
-                // If hovering over OSD area while in shortcut mode, transition to hover control
-                osdShortcutActive = false;
-                root.panels.osd.hovered = true;
+            // Show OSD on drag from right edge
+            if (pressed && outOfSidebar && inRightPanel(panels.osdWrapper, dragStart.x, dragStart.y) && withinPanelHeight(panels.osdWrapper, x, y)) {
+                if (dragX < -Config.sidebar.dragThreshold)
+                    panels.osd.show(true);
+                else if (dragX > Config.sidebar.dragThreshold && Date.now() - panels.osd.openedAt > 400)
+                    screenState.osd = false;
             }
 
             // Show/hide session on drag
@@ -230,50 +260,41 @@ CustomMouseArea {
                 screenState.launcher = false;
         }
 
-        // Show dashboard on hover
-        const showDashboard = Config.dashboard.showOnHover && inDashboardArea(x, y);
-
-        // Always update visibility based on hover if not in shortcut mode
-        if (!dashboardShortcutActive) {
-            screenState.dashboard = showDashboard;
-        } else if (showDashboard) {
-            // If hovering over dashboard area while in shortcut mode, transition to hover control
-            dashboardShortcutActive = false;
-        }
-
-        // Show/hide dashboard on drag (for touchscreen devices)
-        if (pressed && inDashboardArea(dragStart.x, dragStart.y) && (geometry.dashboardOnLeft ? withinPanelHeight(panels.dashboard, x, y) : withinPanelWidth(panels.dashboard, x, y))) {
+        // Show dashboard on hover, or show/hide on drag if hover is disabled
+        if (Config.dashboard.showOnHover) {
+            const showDashboard = inDashboardArea(x, y);
+            if (!dashboardShortcutActive) {
+                screenState.dashboard = showDashboard;
+            } else if (showDashboard) {
+                dashboardShortcutActive = false;
+            }
+        } else if (pressed && inDashboardArea(dragStart.x, dragStart.y) && (geometry.dashboardOnLeft ? withinPanelHeight(panels.dashboard, x, y) : withinPanelWidth(panels.dashboard, x, y))) {
+            const dashThreshold = Config.dashboard.dragThreshold || 10;
             const dashDrag = geometry.dashboardOnLeft ? dragX : dragY;
-            if (dashDrag > Config.dashboard.dragThreshold)
+            if (dashDrag > dashThreshold)
                 screenState.dashboard = true;
-            else if (dashDrag < -Config.dashboard.dragThreshold)
+            else if (dashDrag < -dashThreshold)
                 screenState.dashboard = false;
         }
 
-        // Show utilities on hover; on a bottom bar it rides the power entry instead of an edge zone
-        let showUtilities;
-        if (geometry.barOnBottom) {
-            const entry = geometry.barContains(x, y) ? bar.entryAt(geometry.axisPos(x, y)) : "";
-            showUtilities = entry === "power" || (screenState.utilities && !entry && inBottomPanel(panels.utilities, x, y, true));
-        } else {
-            showUtilities = inBottomPanel(panels.utilities, x, y, true);
+        // Show/hide utilities on drag from bottom edge
+        const utilsThreshold = Config.sidebar.dragThreshold || 10;
+        if (pressed && inBottomPanel(panels.utilities, dragStart.x, dragStart.y, true) && withinPanelWidth(panels.utilities, x, y)) {
+            if (dragY < -utilsThreshold)
+                screenState.utilities = true;
+            else if (dragY > utilsThreshold)
+                screenState.utilities = false;
         }
 
-        // Always update visibility based on hover if not in shortcut mode
-        if (!utilitiesShortcutActive) {
-            screenState.utilities = showUtilities;
-        } else if (showUtilities) {
-            // If hovering over utilities area while in shortcut mode, transition to hover control
-            utilitiesShortcutActive = false;
-        }
-
-        // Show popouts on hover
-        if (geometry.barContains(x, y)) {
-            bar.checkPopout(geometry.axisPos(x, y));
-        } else if ((!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) && !inPopoutArea(x, y)) {
+        // Bar popouts are click-toggled; keep the open one while the cursor is on
+        // its panel or on the bar itself (so it survives the trip from icon to panel)
+        if ((!popouts.currentName.startsWith("traymenu") || ((popouts.current as StackView)?.depth ?? 0) <= 1) && !inPopoutArea(x, y) && !geometry.barContains(x, y)) {
             popouts.hasCurrent = false;
             bar.closeTray();
         }
+
+        // Track the bar entry under the cursor for hover cursor/effects
+        bar.hoveredEntry = geometry.barContains(x, y) ? bar.entryAt(geometry.axisPos(x, y)) : "";
     }
 
     // Monitor individual visibility changes

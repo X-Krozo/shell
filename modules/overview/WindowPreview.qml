@@ -81,15 +81,19 @@ StyledRect {
     // corner after being unfloated. All math here is derived from `data` alone,
     // never from the root.* auxiliary bindings, for the same reason.
     function computeHomeGeom(data): void {
-        const ipc = data ?? root.ipc;
+        const ipc = data ?? root.ipc ?? root.toplevel?.lastIpcObject;
+        if (!ipc)
+            return;
         const cw = root.grid?.cardWidth ?? 10;
         const ch = root.grid?.cardHeight ?? 10;
         const wsId = ipc?.workspace?.id ?? 1;
         const isSpecial = (ipc?.workspace?.name ?? "").startsWith("special:");
         const monX = root.monData ? (root.monData.x ?? 0) : (ipc?.monitor?.x ?? 0);
         const monY = root.monData ? (root.monData.y ?? 0) : (ipc?.monitor?.y ?? 0);
-        const initX = Math.max(((ipc?.at?.[0] ?? 0) - monX - root.reserved[0]), 0) * OverviewState.zoomW;
-        const initY = Math.max(((ipc?.at?.[1] ?? 0) - monY - root.reserved[1]), 0) * OverviewState.zoomH;
+        const reservedLeft = root.reserved?.[0] ?? 0;
+        const reservedTop = root.reserved?.[1] ?? 0;
+        const initX = Math.max(((ipc?.at?.[0] ?? 0) - monX - reservedLeft), 0) * OverviewState.zoomW;
+        const initY = Math.max(((ipc?.at?.[1] ?? 0) - monY - reservedTop), 0) * OverviewState.zoomH;
         const spacing = root.grid?.cardSpacing ?? 0;
         const xOffset = isSpecial
             ? root.magicColIdx * (cw + spacing)
@@ -99,8 +103,10 @@ StyledRect {
             : wsRow(wsId) * (ch + spacing);
         const tX = initX + xOffset;
         const tY = initY + yOffset;
-        const tW = Math.max(Math.min((ipc?.size?.[0] ?? 0) * OverviewState.zoomW, cw - initX - 2), 8);
-        const tH = Math.max(Math.min((ipc?.size?.[1] ?? 0) * OverviewState.zoomH, ch - initY - 2), 8);
+        const rawW = (ipc?.size?.[0] ?? 0) * OverviewState.zoomW;
+        const rawH = (ipc?.size?.[1] ?? 0) * OverviewState.zoomH;
+        const tW = Math.max(Math.min(rawW, Math.max(cw - initX, 8)), 8);
+        const tH = Math.max(Math.min(rawH, Math.max(ch - initY, 8)), 8);
         root.targetX = tX;
         root.targetY = tY;
         root.targetWidth = tW;

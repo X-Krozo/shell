@@ -30,7 +30,8 @@ Item {
         if (showingGrid) {
             const gridMaxH = root.maxHeight - search.implicitHeight - root.padding * 3;
             const cappedGridH = Math.min(grid.height, gridMaxH);
-            return search.height + cappedGridH + root.padding + search.anchors.bottomMargin;
+            // Paddings: top inset + grid-search gap + search bottom margin
+            return search.height + cappedGridH + root.padding * 2 + search.anchors.bottomMargin;
         }
         return search.height + listWrapper.height + root.padding + search.anchors.bottomMargin;
     }
@@ -59,8 +60,10 @@ Item {
     Connections {
         target: root.screenState
         function onLauncherChanged(): void {
-            if (root.screenState.launcher)
+            if (root.screenState.launcher) {
                 root.hasTyped = false;
+                HyprlandData.updateAll();
+            }
             OverviewState.open = root.screenState.launcher && showingGrid;
         }
     }

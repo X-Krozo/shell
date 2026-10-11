@@ -232,16 +232,17 @@ Item {
                 values: {
                     const start = root.page * root.perPageRegular;
                     return Hypr.toplevels.values.filter(t => {
-                        const c = t.lastIpcObject;
-                        if (!c || c.hidden)
+                        const addr = t.lastIpcObject?.address ?? t.address ?? "";
+                        const clean = String(addr).replace(/^0x/i, "").toLowerCase();
+                        const w = HyprlandData.windowByAddress[addr] ?? HyprlandData.windowByAddress[clean] ?? HyprlandData.windowByAddress["0x" + clean] ?? t.lastIpcObject;
+                        if (!w || w.hidden)
                             return false;
-                        const w = HyprlandData.windowByAddress[c.address] ?? c;
-                        if (!w.workspace)
+                        const ws = w.workspace ?? t.workspace;
+                        if (!ws)
                             return false;
-                        // Magic (special) windows always show, over the magic card
-                        if ((w.workspace.name ?? "").startsWith("special:"))
+                        if ((ws.name ?? "").startsWith("special:"))
                             return true;
-                        const wsId = w.workspace.id;
+                        const wsId = ws.id;
                         if (wsId < start + 1 || wsId > start + root.perPageRegular)
                             return false;
                         return true;
@@ -255,7 +256,11 @@ Item {
                 required property var modelData
 
                 toplevel: modelData
-                windowData: HyprlandData.windowByAddress[modelData.lastIpcObject?.address] ?? null
+                windowData: {
+                    const addr = modelData?.lastIpcObject?.address ?? modelData?.address ?? "";
+                    const clean = String(addr).replace(/^0x/i, "").toLowerCase();
+                    return HyprlandData.windowByAddress[addr] ?? HyprlandData.windowByAddress[clean] ?? HyprlandData.windowByAddress["0x" + clean] ?? modelData?.lastIpcObject ?? null;
+                }
                 grid: root
                 monData: root.monData
                 reserved: root.reserved
@@ -298,8 +303,8 @@ Item {
         height: cards.height
         color: "transparent"
 
-        readonly property int rowIdx: root.wsRow(root.activeWsId)
-        readonly property int colIdx: root.wsCol(root.activeWsId)
+        readonly property int rowIdx: root.onSpecial ? OverviewState.rows - 1 : root.wsRow(root.activeWsId)
+        readonly property int colIdx: root.onSpecial ? OverviewState.columns - 1 : root.wsCol(root.activeWsId)
 
         Rectangle {
             x: parent.colIdx * (root.cardWidth + root.cardSpacing)

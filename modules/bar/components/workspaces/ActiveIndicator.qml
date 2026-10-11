@@ -59,6 +59,15 @@ StyledRect {
         sourceColor: Colours.palette.m3onSurface
         colorizationColor: root.contentColour
 
+        // Hidden while Super numbers show: the mask includes the overlay
+        // numbers, so the tinted copy would double-render (smear) them
+        opacity: Hypr.showNumbers ? 0 : 1
+        visible: opacity > 0
+
+        Behavior on opacity {
+            Anim {}
+        }
+
         x: root.horizontal ? -parent.offset : 0
         y: root.horizontal ? 0 : -parent.offset
         implicitWidth: root.mask.implicitWidth

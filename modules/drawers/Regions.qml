@@ -13,6 +13,9 @@ Region {
 
     readonly property real borderThickness: win.contentItem.Config.border.thickness
     readonly property real clampedThickness: win.contentItem.Config.border.clampedThickness
+    // Edge-drag trigger zones are minThickness wide; closed panels keep exactly
+    // that sliver so app UI (e.g. scrollbars) under the wrappers stays clickable
+    readonly property real minThickness: win.contentItem.Config.border.minThickness
 
     x: geometry.insetLeft(clampedThickness, true) + win.dragMaskPadding
     y: geometry.insetTop(clampedThickness, true) + win.dragMaskPadding
@@ -38,8 +41,12 @@ Region {
         id: sessionRegion
 
         panel: root.panels.sessionWrapper
-        x: root.win.width - width
-        width: panel.width * (1 - root.panels.session.offsetScale) + root.borderThickness + sidebarRegion.width
+        // Anchor at the panel's real left edge and extend right over the
+        // sidebar: when panels stack, a right-edge-anchored strip leaves the
+        // panel itself uncovered, clicks fall through and the focus grab
+        // clears (closing the session). Sliver at the edge while closed.
+        x: root.win.screenState.session ? panel.x + root.geometry.insetLeft(root.borderThickness) : root.win.width - width
+        width: root.win.screenState.session ? panel.width + root.borderThickness + sidebarRegion.width : root.minThickness
     }
 
     R {
@@ -47,13 +54,17 @@ Region {
 
         panel: root.panels.sidebar
         x: root.win.width - width
-        width: panel.width * (1 - root.panels.sidebar.offsetScale) + root.borderThickness
+        width: root.win.screenState.sidebar ? panel.width + root.borderThickness : root.minThickness
     }
 
     R {
         panel: root.panels.osdWrapper
-        x: root.win.width - width
-        width: panel.width * (1 - root.panels.osd.offsetScale) + root.borderThickness + sessionRegion.width
+        // Same stacking rule as session: anchor at the panel's real left edge
+        // and extend right over session/sidebar, else slider clicks fall
+        // through and the grab clear closes the power menu. Bare trigger
+        // sliver while closed so app UI underneath stays clickable.
+        x: root.panels.osd.shouldBeActive ? panel.x + root.geometry.insetLeft(root.borderThickness) : root.win.width - width
+        width: root.panels.osd.shouldBeActive ? panel.width + root.borderThickness + sessionRegion.width : root.minThickness
     }
 
     R {
@@ -70,8 +81,11 @@ Region {
 
     R {
         panel: root.panels.popoutsWrapper
-        width: root.geometry.horizontal ? panel.width : panel.width * (1 - root.panels.popoutsWrapper.offsetScale)
-        height: root.geometry.horizontal ? panel.height * (1 - root.panels.popoutsWrapper.offsetScale) : panel.height
+        // Full target size while open: the visual grows in via offsetScale, but input
+        // must cover it from the first frame or a fast mouse leaves the window
+        // mid-animation and the popout closes itself.
+        width: root.geometry.horizontal ? panel.width : root.panels.popouts.hasCurrent ? root.panels.popouts.nonAnimWidth : panel.width * (1 - root.panels.popoutsWrapper.offsetScale)
+        height: root.geometry.horizontal ? root.panels.popouts.hasCurrent ? root.panels.popouts.nonAnimHeight : panel.height * (1 - root.panels.popoutsWrapper.offsetScale) : panel.height
     }
 
     component R: Region {

@@ -28,14 +28,16 @@ Item {
         }
     }
 
-    readonly property real nonAnimHeight: (content.item as Content)?.nonAnimHeight ?? 0
+    readonly property real nonAnimHeight: (content.item as Content)?.nonAnimHeight ?? 550
     readonly property bool shouldBeActive: screenState.dashboard && Config.dashboard.enabled
     property real offsetScale: shouldBeActive ? 0 : 1
 
     visible: offsetScale < 1
     anchors.topMargin: onLeft ? 0 : (-implicitHeight - 5) * offsetScale
     anchors.leftMargin: onLeft ? (-implicitWidth - 5) * offsetScale : 0
-    implicitHeight: content.implicitHeight
+    width: implicitWidth
+    height: implicitHeight
+    implicitHeight: content.implicitHeight || 550
     implicitWidth: content.implicitWidth || 854 // Hard coded fallback for first open
     opacity: 1 - offsetScale
 

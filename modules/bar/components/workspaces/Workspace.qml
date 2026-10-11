@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Hyprland
+import Quickshell.Widgets
 import M3Shapes
 import Caelestia.Components
 import Caelestia.Config
@@ -32,7 +33,6 @@ GridLayout {
     readonly property bool isOccupied: toplevels.length > 0
     readonly property bool hasWindows: isOccupied && showWindows && Config.bar.workspaces.maxWindowIcons > 0
     readonly property bool focused: activeWsId === ws
-    readonly property list<int> focusedShapeList: [MaterialShape.Slanted, MaterialShape.Oval, MaterialShape.Pill, MaterialShape.Triangle, MaterialShape.Arrow, MaterialShape.Diamond, MaterialShape.Pentagon, MaterialShape.Gem, MaterialShape.VerySunny, MaterialShape.Sunny, MaterialShape.Cookie4Sided, MaterialShape.Cookie6Sided, MaterialShape.Cookie7Sided, MaterialShape.Cookie9Sided, MaterialShape.Cookie12Sided, MaterialShape.Clover4Leaf, MaterialShape.SoftBurst, MaterialShape.Ghostish]
 
     property color offMonitorColour: Colours.palette.m3outlineVariant
     readonly property bool onOtherMonitor: {
@@ -48,31 +48,22 @@ GridLayout {
             return Colours.palette.m3onSurface;
         return Colours.layer(Colours.palette.m3outlineVariant, 2);
     }
+    // Special (magic/scratchpad) workspaces render a ✦ label; Google Sans
+    // lacks that glyph, so they use a symbols font that has it solid.
+    readonly property bool isSpecialWs: (Hypr.workspaces.values.find(w => w.id === root.ws)?.name.startsWith("special:") ?? false)
 
     // Unanimated prop for others to use as reference
     readonly property int size: (horizontal ? implicitWidth : implicitHeight) + (hasWindows ? Tokens.padding.extraSmall : 0)
-
-    function updateShape(): void {
-        const shape = indicator.item as MaterialShape;
-        if (!shape)
-            return;
-
-        if (focused)
-            shape.shape = focusedShapeList[Math.floor(Math.random() * focusedShapeList.length)];
-        else
-            shape.shape = Qt.binding(() => isOccupied ? MaterialShape.Square : MaterialShape.Circle);
-    }
-
-    Layout.alignment: horizontal ? Qt.AlignVCenter : Qt.AlignHCenter
-    Layout.preferredWidth: horizontal ? size : -1
-    Layout.preferredHeight: horizontal ? -1 : size
+    // Base cell unit for the indicator overlays
+    readonly property real slotSize: Tokens.sizes.bar.innerWidth - Tokens.padding.small
 
     columns: horizontal ? -1 : 1
     rowSpacing: 0
     columnSpacing: 0
 
-    onFocusedChanged: updateShape()
-    Component.onCompleted: updateShape()
+    Layout.alignment: horizontal ? Qt.AlignVCenter : Qt.AlignHCenter
+    Layout.preferredWidth: horizontal ? size : -1
+    Layout.preferredHeight: horizontal ? -1 : size
 
     Behavior on Layout.preferredHeight {
         Anim {}
@@ -82,14 +73,35 @@ GridLayout {
         Anim {}
     }
 
-    Component {
-        id: shapeComponent
+    WsIconCacher {
+        id: slotCacher
+    }
+
+    // Layer visibility for the indicator cell (ii-style: every layer persists
+    // and cross-fades instead of swapping components)
+    readonly property bool customShown: root.displayType === BarWorkspaceDisplay.Icons && !root.isOccupied && slotCacher.icon !== "" && !Hypr.showNumbers
+    readonly property bool iconFull: root.isOccupied && !Hypr.showNumbers
+    readonly property bool iconSub: root.isOccupied && Hypr.showNumbers
+    readonly property bool showNum: Hypr.showNumbers || (!root.isOccupied && (root.focused || root.displayType === BarWorkspaceDisplay.Text || (root.displayType === BarWorkspaceDisplay.Icons && slotCacher.icon === "")))
+    readonly property bool showDots: !showNum && !iconFull && !customShown
+
+    Item {
+        id: indicatorCell
+
+        Layout.alignment: horizontal ? Qt.AlignVCenter | Qt.AlignHCenter : Qt.AlignHCenter | Qt.AlignVCenter
+        Layout.preferredWidth: horizontal ? root.slotSize : -1
+        Layout.preferredHeight: horizontal ? -1 : root.slotSize
+        implicitWidth: root.slotSize
+        implicitHeight: root.slotSize
 
         MaterialShape {
-            implicitSize: Tokens.sizes.bar.innerWidth - Tokens.padding.small
+            anchors.centerIn: parent
+            implicitSize: root.slotSize
 
             color: root.fgColour
             scale: root.focused ? 2 / 3 : root.isOccupied ? 1 / 3 : 1 / 4
+            shape: isOccupied ? MaterialShape.Square : MaterialShape.Circle
+            opacity: root.showDots ? 1 : 0
 
             animationEasing: Tokens.anim.expressiveDefaultSpatial
             animationDuration: Tokens.anim.durations.expressiveDefaultSpatial * Tokens.anim.durations.scale
@@ -101,14 +113,14 @@ GridLayout {
             Behavior on scale {
                 Anim {}
             }
-        }
-    }
 
-    Component {
-        id: textComponent
+            Behavior on opacity {
+                Anim {}
+            }
+        }
 
         StyledText {
-            animate: true
+            anchors.centerIn: parent
             text: {
                 if (root.focused) {
                     const label = root.activeLabel;
@@ -127,7 +139,7 @@ GridLayout {
                     return label;
 
                 const ws = Hypr.workspaces.values.find(w => w.id === root.ws);
-                const wsName = !ws || ws.name == root.ws ? root.ws : Hypr.trimWsName(ws.name)[0];
+                const wsName = !ws || ws.name == root.ws ? root.ws : root.isSpecialWs ? "✦" : Hypr.trimWsName(ws.name)[0];
 
                 const capitalisation = Config.bar.workspaces.capitalisation;
                 if (capitalisation === BarWorkspaceCapitalisation.Upper)
@@ -136,9 +148,71 @@ GridLayout {
                     return String(wsName).toLowerCase();
                 return wsName;
             }
-            color: root.fgColour
+            // Readable on whatever is behind: pink pill only shows on
+            // focused-empty slots, occupied slots sit on the dark bg pill
+            // Specials stay pure white: the dynamic wallpaper scheme tints
+            // onPrimary/onSurface, which can wash the glyph out.
+            color: root.isSpecialWs ? "white" : root.focused && !root.isOccupied ? Colours.palette.m3onPrimary : root.fgColour
+            horizontalAlignment: Text.AlignHCenter
             verticalAlignment: Qt.AlignVCenter
-            font.family: Tokens.font.workspaces
+            font.family: root.isSpecialWs ? "Noto Sans Symbols 2" : "Google Sans Flex"
+            font.pointSize: Tokens.font.body.small.pointSize - 0.5
+            opacity: root.showNum ? 1 : 0
+
+            Behavior on opacity {
+                Anim {}
+            }
+        }
+
+        Loader {
+            anchors.centerIn: parent
+            active: root.customShown
+            opacity: root.customShown ? 1 : 0
+            sourceComponent: iconComponent
+
+            Behavior on opacity {
+                Anim {}
+            }
+        }
+
+        Item {
+            // Main window icon (ii-style): full cell container, icon anchored
+            // bottom-right; margins and size glide between centered-full and
+            // corner-subscript, animated on every toggle
+            anchors.fill: parent
+
+            IconImage {
+                id: appIcon
+
+                readonly property var firstWindow: toplevels.length > 0 ? toplevels[0] : null
+
+                anchors.bottom: parent.bottom
+                anchors.right: parent.right
+                anchors.bottomMargin: root.iconFull ? (root.slotSize - root.slotSize * 0.68) / 2 : -4
+                anchors.rightMargin: root.iconFull ? (root.slotSize - root.slotSize * 0.68) / 2 : -4
+                implicitSize: root.iconFull ? root.slotSize * 0.68 : root.slotSize * 0.55
+                width: implicitSize
+                height: implicitSize
+                opacity: (root.iconFull || root.iconSub) ? 1 : 0
+                visible: opacity > 0
+                source: firstWindow ? Icons.getAppIcon(firstWindow.lastIpcObject.class, "image-missing") : ""
+
+                Behavior on opacity {
+                    Anim {}
+                }
+
+                Behavior on anchors.bottomMargin {
+                    Anim {}
+                }
+
+                Behavior on anchors.rightMargin {
+                    Anim {}
+                }
+
+                Behavior on implicitSize {
+                    Anim {}
+                }
+            }
         }
     }
 
@@ -156,35 +230,6 @@ GridLayout {
                 id: iconCacher
             }
         }
-    }
-
-    Component {
-        id: iconLoaderComponent
-
-        Loader {
-            sourceComponent: loaderIconCacher.icon ? iconComponent : textComponent
-
-            WsIconCacher {
-                id: loaderIconCacher
-            }
-        }
-    }
-
-    Loader {
-        id: indicator
-
-        Layout.alignment: horizontal ? Qt.AlignVCenter | Qt.AlignLeft : Qt.AlignHCenter | Qt.AlignTop
-        Layout.preferredWidth: horizontal ? Tokens.sizes.bar.innerWidth - Tokens.padding.small : -1
-        Layout.preferredHeight: horizontal ? -1 : Tokens.sizes.bar.innerWidth - Tokens.padding.small
-        sourceComponent: {
-            if (root.displayType === BarWorkspaceDisplay.Icons)
-                return iconLoaderComponent;
-            if (root.displayType === BarWorkspaceDisplay.Text)
-                return textComponent;
-            return shapeComponent;
-        }
-
-        onItemChanged: root.updateShape()
     }
 
     Loader {
@@ -236,13 +281,11 @@ GridLayout {
                     }
                 }
 
-                MaterialIcon {
+                IconImage {
                     required property var modelData
 
-                    grade: 0
-                    horizontalAlignment: Text.AlignHCenter
-                    text: Icons.getAppCategoryIcon(modelData.lastIpcObject.class, "terminal")
-                    color: root.onOtherMonitor ? root.offMonitorColour : Colours.palette.m3onSurfaceVariant
+                    implicitSize: Tokens.sizes.bar.innerWidth * 0.42
+                    source: Icons.getAppIcon(modelData.lastIpcObject.class, "image-missing")
 
                     Behavior on scale {
                         Anim {

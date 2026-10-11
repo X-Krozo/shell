@@ -25,10 +25,24 @@ Item {
     readonly property int exclusiveZone: !disabled && (Config.bar.persistent || screenState.bar) ? contentThickness : Config.border.thickness
     readonly property bool shouldBeVisible: !fullscreen && !disabled && (Config.bar.persistent || screenState.bar || isHovered)
     property bool isHovered
+    // Id of the bar entry currently under the cursor ("" when none); drives
+    // hover cursor and entry hover effects
+    property string hoveredEntry
     property real extent: fullscreen ? 0 : Config.border.thickness
 
     function closeTray(): void {
         (content.item as Bar)?.closeTray();
+    }
+
+    // Toggle a bar popout for a click at the given bar-axis position.
+    // (Bar delegates call bar.togglePopout(...); this is the implementation.)
+    function togglePopout(pos: real): void {
+        const before = (popouts.currentName ?? "") + (popouts.hasCurrent ? "|open" : "|closed");
+        checkPopout(pos);
+        if (popouts.hasCurrent && (popouts.currentName ?? "") + "|open" === before) {
+            popouts.hasCurrent = false;
+            closeTray();
+        }
     }
 
     function checkPopout(pos: real): void {

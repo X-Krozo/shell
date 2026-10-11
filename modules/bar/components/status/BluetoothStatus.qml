@@ -12,6 +12,7 @@ Item {
     id: root
 
     required property color colour
+    required property bool horizontal
 
     implicitWidth: layout.implicitWidth
     implicitHeight: layout.implicitHeight
@@ -22,10 +23,15 @@ Item {
         }
     }
 
-    ColumnLayout {
+    GridLayout {
         id: layout
 
-        spacing: Tokens.spacing.medium / 2
+        // Device icons sit beside the main icon on horizontal bars;
+        // stacking them vertically overflows the fixed-height pill.
+        columns: root.horizontal ? -1 : 1
+        rows: root.horizontal ? 1 : -1
+        rowSpacing: Tokens.spacing.medium / 2
+        columnSpacing: Tokens.spacing.medium / 2
 
         // Bluetooth icon
         MaterialIcon {

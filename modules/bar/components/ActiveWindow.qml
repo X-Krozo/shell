@@ -4,6 +4,7 @@ import QtQuick
 import Caelestia.Config
 import Caelestia.I18n
 import qs.components
+import qs.components.effects
 import qs.services
 import qs.utils
 
@@ -19,13 +20,15 @@ Item {
         const title = Hypr.activeToplevel?.title;
         if (!title)
             return Tr.trCtx("Desktop", "shown when no window is focused");
+        let name = title;
         if (Config.bar.activeWindow.compact) {
             // " - " (standard hyphen), " — " (em dash), " – " (en dash)
             const parts = title.split(/\s+[\-\u2013\u2014]\s+/);
             if (parts.length > 1)
-                return parts[parts.length - 1].trim();
+                name = parts[parts.length - 1].trim();
         }
-        return title;
+        // Cap length; Title fades the tail edge (see fadeMask below)
+        return name.length > 75 ? name.slice(0, 75) : name;
     }
 
     readonly property int maxSize: {
@@ -124,6 +127,13 @@ Item {
     component Title: StyledText {
         id: text
 
+        // Fade the tail edge when the name was capped at 75 chars.
+        // Local coords, so it follows the rotation for vertical bars.
+        layer.enabled: root.windowTitle.length >= 75
+        layer.effect: Mask {
+            maskSource: fadeMask
+        }
+
         anchors.horizontalCenter: root.horizontal ? undefined : icon.horizontalCenter
         anchors.verticalCenter: root.horizontal ? icon.verticalCenter : undefined
         anchors.left: root.horizontal ? icon.right : undefined
@@ -149,6 +159,29 @@ Item {
 
         width: root.horizontal ? implicitWidth : implicitHeight
         height: root.horizontal ? implicitHeight : implicitWidth
+
+        Rectangle {
+            id: fadeMask
+
+            anchors.fill: parent
+            visible: false
+            layer.enabled: true
+            gradient: Gradient {
+                orientation: Gradient.Horizontal
+                GradientStop {
+                    position: 0.0
+                    color: Qt.rgba(0, 0, 0, 1)
+                }
+                GradientStop {
+                    position: 0.85
+                    color: Qt.rgba(0, 0, 0, 1)
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Qt.rgba(0, 0, 0, 0)
+                }
+            }
+        }
 
         Behavior on opacity {
             Anim {

@@ -39,6 +39,10 @@ Item {
         if (!horizontal)
             return 0;
 
+        // Window info panel pins to the top-left corner instead of centering
+        if (content.currentName === "activewindow")
+            return 0;
+
         const off = content.currentCenter - borderThickness - content.nonAnimWidth / 2;
         const diff = parent.width - Math.floor(off + content.nonAnimWidth);
         if (diff < 0)

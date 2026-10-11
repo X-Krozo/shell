@@ -27,27 +27,30 @@ GridLayout {
 
     function groupWidth(from: int, to: int): real {
         let w = 0;
-        for (let i = from; i < to; i++) {
-            const item = (repeater.itemAt(i) as EntryWrapper)?.item;
-            if (item) w += item.implicitWidth;
-        }
+        for (let i = from; i < to; i++)
+            w += (repeater.itemAt(i) as EntryWrapper)?.item?.implicitWidth ?? 0;
         return w;
     }
 
-    function spacerBalance(index: int): real {
-        const ws = wsIndex();
-        if (ws < 0 || !root.horizontal)
+    // Exact width for the spacer left of workspaces so the ws module sits dead-centre.
+    // (Two fill spacers always split free space equally, so symmetric minimums can never center it.
+    // Pinning the left spacer to the exact size leaves the right spacer to absorb the rest.)
+    function leftSpacerWidth(): real {
+        if (!root.horizontal)
             return 0;
-
-        const spacing = Tokens.spacing.medium;
-        const left = groupWidth(0, ws) + ws * spacing;
-        const right = groupWidth(ws + 1, repeater.count) + (repeater.count - ws - 1) * spacing;
-
-        if (index < ws)
-            return Math.max(0, right - left);
-        if (index > ws)
-            return Math.max(0, left - right);
-        return 0;
+        const ws = wsIndex();
+        if (ws < 0 || root.width <= 0)
+            return 0;
+        // Guard: only measure once every delegate exists. itemAt() is not
+        // reactive, so without a notifiable dependency (count) the binding can
+        // lock onto a partially populated row and never re-fire afterwards.
+        if (repeater.count <= ws + 1)
+            return 0;
+        const wsW = (repeater.itemAt(ws) as EntryWrapper)?.item?.implicitWidth ?? 0;
+        if (wsW <= 0)
+            return 0;
+        const left = groupWidth(0, ws - 1);
+        return Math.max(0, (root.width - wsW) / 2 - root.axisPadding - left - root.columnSpacing * ws);
     }
 
     function closeTray(): void {
@@ -118,6 +121,15 @@ GridLayout {
         }
     }
 
+    function togglePopout(pos: real): void {
+        const before = (popouts.currentName ?? "") + (popouts.hasCurrent ? "|open" : "|closed");
+        checkPopout(pos);
+        if (popouts.hasCurrent && (popouts.currentName ?? "") + "|open" === before) {
+            popouts.hasCurrent = false;
+            closeTray();
+        }
+    }
+
     function handleWheel(pos: real, angleDelta: point): void {
         const ch = (horizontal ? childAt(pos, height / 2) : childAt(width / 2, pos)) as EntryWrapper;
         if (ch?.entryId === "workspaces" && Config.bar.scrollActions.workspaces) {
@@ -162,8 +174,11 @@ GridLayout {
                 roleValue: "spacer"
                 delegate: EntryWrapper {
                     Layout.fillHeight: !root.horizontal
-                    Layout.fillWidth: root.horizontal
-                    Layout.minimumWidth: root.spacerBalance(index)
+                    Layout.fillWidth: root.horizontal && index !== root.wsIndex() - 1
+                    Layout.preferredWidth: index === root.wsIndex() - 1 ? root.leftSpacerWidth() : -1
+                    // Clamp the pinned spacer exactly: preferredWidth alone still lets it absorb free space
+                    Layout.minimumWidth: index === root.wsIndex() - 1 ? root.leftSpacerWidth() : 0
+                    Layout.maximumWidth: index === root.wsIndex() - 1 ? root.leftSpacerWidth() : 16777215
                 }
             }
             DelegateChoice {
@@ -249,6 +264,20 @@ GridLayout {
 
         implicitWidth: item?.implicitWidth ?? 0
         implicitHeight: item?.implicitHeight ?? 0
+
+        MouseArea {
+            anchors.fill: parent
+            z: 1000
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
+            propagateComposedEvents: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: event => {
+                const pos = mapToItem(root, event.x, event.y);
+                if (geometry.barContains(pos.x, pos.y))
+                    bar.togglePopout(geometry.axisPos(pos.x, pos.y));
+            }
+        }
 
         children: item
     }

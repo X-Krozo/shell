@@ -139,6 +139,7 @@ Item {
 
                     Details {
                         Layout.fillWidth: true
+                        screenState: root.screenState
                     }
 
                     LyricsAndSelector {

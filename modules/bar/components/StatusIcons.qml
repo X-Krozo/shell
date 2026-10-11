@@ -17,6 +17,13 @@ StyledRect {
     property color colour: Colours.palette.m3secondary
     readonly property alias items: iconColumn
 
+    transformOrigin: Item.Center
+    scale: bar.hoveredEntry === "statusIcons" ? 1.06 : 1
+
+    Behavior on scale {
+        Anim {}
+    }
+
     readonly property int spacing: Tokens.spacing.medium / 2
 
     // Index of the first/last entry that isn't collapsed, for edge margin gating
@@ -140,6 +147,7 @@ StyledRect {
                     delegate: EntryWrapper {
                         BluetoothStatus {
                             colour: root.colour
+                            horizontal: root.horizontal
                         }
                     }
                 }
@@ -177,6 +185,20 @@ StyledRect {
         implicitHeight: item?.implicitHeight ?? 0
 
         children: item
+
+        MouseArea {
+            anchors.fill: parent
+            z: 1000
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            hoverEnabled: true
+            propagateComposedEvents: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: event => {
+                const pos = mapToItem(root, event.x, event.y);
+                if (geometry.barContains(pos.x, pos.y))
+                    bar.togglePopout(geometry.axisPos(pos.x, pos.y));
+            }
+        }
 
         Behavior on topGap {
             Anim {

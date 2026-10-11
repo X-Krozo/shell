@@ -24,10 +24,18 @@ StyledClippingRect {
     readonly property int activeWsIdx: workspaceIndex(activeWsId)
     readonly property int shown: Math.max(1, Config.bar.workspaces.shown)
 
+    // Derived from toplevels (reactive) so the bg follows window open/close/move.
+    // lastIpcObject.windows does not re-fire bindings, which left pills behind.
+    // NOTE: keyed by the *visible* ids (group-aware), not wsIds: with
+    // showUnoccupied the slots show groupOffset+1.. while wsIds stays 1..shown,
+    // so pills would otherwise mirror the first lot onto every other lot.
+    readonly property var visibleIds: Config.bar.workspaces.showUnoccupied ? Array.from({
+        length: shown
+    }, (_, i) => groupOffset + i + 1) : wsIds
     readonly property var occupied: {
         const occ = {};
-        for (const ws of Hypr.workspaces.values)
-            occ[ws.id] = ws.lastIpcObject.windows > 0;
+        for (const id of root.visibleIds)
+            occ[id] = Hypr.toplevelsForWs(id, GlobalConfig.bar.workspaces.ignoredTags).length > 0;
         return occ;
     }
 
@@ -58,6 +66,14 @@ StyledClippingRect {
     }
 
     property real blur: onSpecial ? 1 : 0
+
+    transformOrigin: Item.Center
+    // No grow while the special overlay covers this (it would animate hidden content)
+    scale: bar.hoveredEntry === "workspaces" && !root.onSpecial ? 1.06 : 1
+
+    Behavior on scale {
+        Anim {}
+    }
 
     function workspaceIndex(id: int): int {
         if (!Config.bar.workspaces.showUnoccupied)
@@ -101,7 +117,7 @@ StyledClippingRect {
             sourceComponent: OccupiedBg {
                 workspaces: workspaces
                 occupied: root.occupied
-                wsIds: root.wsIds
+                wsIds: root.visibleIds
                 horizontal: root.horizontal
             }
 
@@ -170,6 +186,10 @@ StyledClippingRect {
             anchors.verticalCenter: root.horizontal ? parent.verticalCenter : undefined
             active: Config.bar.workspaces.activeIndicator
 
+            // Paint the pill + trail below the slots so full-color window
+            // icons stay visible (Colouriser copy lands behind as a halo)
+            z: -1
+
             sourceComponent: ActiveIndicator {
                 activeWsId: root.activeWsId
                 workspaces: workspaces
@@ -180,6 +200,7 @@ StyledClippingRect {
 
         MouseArea {
             anchors.fill: layout
+            cursorShape: Qt.PointingHandCursor
             onClicked: event => {
                 const ws = (layout.childAt(event.x, event.y) as Workspace)?.ws;
                 if (!ws)

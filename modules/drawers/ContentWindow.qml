@@ -56,7 +56,7 @@ StyledWindow {
         for (const panel of ["dashboard", "launcher", "session", "sidebar"])
             if (contentItem.Config[panel].enabled)
                 thresholds.push(contentItem.Config[panel].dragThreshold);
-        return Math.max(...thresholds);
+        return Math.max(...thresholds, 10);
     }
 
     onHasFullscreenChanged: {
@@ -79,7 +79,10 @@ StyledWindow {
     anchors.right: true
 
     Behavior on fsTransitionProg {
-        Anim {}
+        Anim {
+            type: Anim.SlowSpatial
+            easing.type: Easing.InOutQuad
+        }
     }
 
     Behavior on surfaceColour {
@@ -125,7 +128,10 @@ StyledWindow {
         active: {
             const s = root.screenState;
             const conf = root.contentItem.Config;
-            if ((s.launcher && conf.launcher.enabled) || (s.session && conf.session.enabled) || (s.sidebar && conf.sidebar.enabled))
+            // NOTE: osd deliberately excluded: it pops on every Audio/brightness
+            // init (including shell start) and must never steal input; its
+            // sliders are mouse-driven and media keys are global shortcuts.
+            if ((s.launcher && conf.launcher.enabled) || (s.session && conf.session.enabled) || (s.sidebar && conf.sidebar.enabled) || (s.utilities && conf.utilities.enabled))
                 return true;
             if (!conf.dashboard.showOnHover && s.dashboard && conf.dashboard.enabled)
                 return true;
@@ -139,6 +145,8 @@ StyledWindow {
             root.screenState.session = false;
             root.screenState.sidebar = false;
             root.screenState.dashboard = false;
+            root.screenState.osd = false;
+            root.screenState.utilities = false;
             panels.popouts.hasCurrent = false;
             bar.closeTray();
         }
@@ -158,11 +166,20 @@ StyledWindow {
 
     Item {
         anchors.fill: parent
-        opacity: root.surfaceColour.a
+        // Slow fade around fullscreen mirrors the restart entrance: the
+        // layer stays mapped (media overlays keep working), only its
+        // visibility melts out and back in alongside the border morph.
+        opacity: root.surfaceColour.a * (root.hasFullscreen ? 0 : 1)
+        Behavior on opacity {
+            Anim {
+                type: Anim.SlowSpatial
+                easing.type: Easing.InOutQuad
+            }
+        }
         layer.enabled: true
         layer.effect: MultiEffect {
-            shadowEnabled: true
-            blurMax: 15
+            shadowEnabled: false
+            blurMax: 0
             shadowColor: Qt.alpha(Colours.palette.m3shadow, Math.max(0, root.shadowOpacity))
         }
 

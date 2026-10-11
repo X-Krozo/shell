@@ -25,8 +25,30 @@ Item {
     property bool sourceMuted
     property real brightness
 
-    function show(): void {
+    // Fresh (user-opened) OSD waits on a long fuse so sliders stay reachable;
+    // interacting switches to the normal fuse from the next change.
+    // Startup opens (Audio/brightness init flood) must still auto-hide, so
+    // opens during the boot window use the normal fuse.
+    property bool booting: true
+
+    Timer {
+        interval: 3000
+        running: true
+        onTriggered: root.booting = false
+    }
+
+    // Timestamp of the last open; close paths check Date.now() - openedAt
+    // imperatively so the opening gesture can never count as click-outside.
+    // (A binding would latch: nothing re-triggers it after it turns true.)
+    property double openedAt: 0
+
+    function show(longFuse = false): void {
+        // Drag-opens wait on a long fuse (reach the sliders first); system
+        // opens (keys, BT/device changes, boot) use the normal fuse.
+        if (!screenState.osd)
+            timer.interval = (longFuse && !booting) ? root.Config.osd.hideDelay * 3 : root.Config.osd.hideDelay;
         screenState.osd = true;
+        openedAt = Date.now();
         timer.restart();
     }
 
@@ -46,6 +68,17 @@ Item {
 
     Behavior on offsetScale {
         Anim {}
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        onClicked: {
+            if (Date.now() - root.openedAt < 400)
+                return;
+            if (root.shouldBeActive && !content.containsMouse) {
+                root.screenState.osd = false;
+            }
+        }
     }
 
     Connections {
@@ -89,6 +122,16 @@ Item {
             if (!root.hovered)
                 root.screenState.osd = false;
         }
+    }
+
+    Connections {
+        // Direct slider use switches to the normal fuse from the next change.
+        function onInteracted(): void {
+            timer.interval = root.Config.osd.hideDelay;
+            timer.restart();
+        }
+
+        target: content.item
     }
 
     Loader {

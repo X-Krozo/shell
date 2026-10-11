@@ -16,8 +16,17 @@ Singleton {
     readonly property var monitors: Hyprland.monitors
     readonly property bool usingLua: Hyprland.usingLua
 
+    // Address of the focused window, captured once at startup. Quickshell only
+    // learns the active toplevel from focus events, so right after a (re)start
+    // Hyprland.activeToplevel is null (bar shows "Desktop") until the first
+    // focus change. Matching the startup address fills that gap; live focus
+    // state always wins once it arrives.
+    property string startupActiveAddress: ""
+
     readonly property HyprlandToplevel activeToplevel: {
-        const t = Hyprland.activeToplevel;
+        const want = root.startupActiveAddress.replace(/^0x/, "");
+        const fb = want ? toplevels.values.find(w => String(w.address).replace(/^0x/, "") === want) ?? null : null;
+        const t = Hyprland.activeToplevel ?? fb;
         return t?.workspace?.name.startsWith("special:") || Hyprland.focusedWorkspace?.toplevels.values.length > 0 ? t : null;
     }
     readonly property HyprlandWorkspace focusedWorkspace: Hyprland.focusedWorkspace
@@ -37,6 +46,56 @@ Singleton {
     readonly property alias devices: extras.devices
 
     property string lastSpecialWorkspace: ""
+
+    // Snapshot for Super-chord detection (a chord must never toggle the launcher)
+    property int pressWsId: -1
+    property int pressWinCount: -1
+    property string pressWinAddr: ""
+
+    // Super-hold workspace numbers: set by the workspaceNumbers shortcut.
+    // showNumbers appears after a short delay (no flash on quick taps) and
+    // clears on release; heldTooLong marks holds past the tap threshold.
+    property bool showNumbers: false
+    property bool superHeldTooLong: false
+    // True between a press and its matching release; guards against stray or
+    // reordered release deliveries toggling anything.
+    property bool superPressedCycle: false
+
+    Timer {
+        id: showNumbersTimer
+
+        interval: 150
+        onTriggered: root.showNumbers = true
+    }
+
+    Timer {
+        id: tapTimer
+
+        interval: 850
+        onTriggered: root.superHeldTooLong = true
+    }
+
+    function superPressed(): void {
+        root.superPressedCycle = true;
+        root.pressWsId = focusedWorkspace?.id ?? -1;
+        root.pressWinCount = toplevels.values.length;
+        root.pressWinAddr = activeToplevel?.address ?? "";
+        root.showNumbers = false;
+        root.superHeldTooLong = false;
+        showNumbersTimer.restart();
+        tapTimer.restart();
+    }
+
+    function superHadChord(): bool {
+        return (focusedWorkspace?.id ?? -1) !== root.pressWsId || toplevels.values.length !== root.pressWinCount || (activeToplevel?.address ?? "") !== root.pressWinAddr;
+    }
+
+    function superReleased(): void {
+        showNumbersTimer.stop();
+        tapTimer.stop();
+        root.showNumbers = false;
+        root.superPressedCycle = false;
+    }
 
     signal configReloaded
 
@@ -118,9 +177,32 @@ Singleton {
     }
 
     onUsingLuaChanged: reloadDynamicConfs()
-    Component.onCompleted: reloadDynamicConfs()
+    Component.onCompleted: {
+        reloadDynamicConfs();
+        startupActiveProc.running = true;
+    }
+
+    Process {
+        id: startupActiveProc
+
+        command: ["hyprctl", "activewindow", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.startupActiveAddress = JSON.parse(text.trim())?.address ?? "";
+                } catch (e) {
+                    root.startupActiveAddress = "";
+                }
+            }
+        }
+    }
 
     Connections {
+        function onActiveToplevelChanged(): void {
+            if (Hyprland.activeToplevel)
+                root.startupActiveAddress = "";
+        }
+
         function onRawEvent(event: HyprlandEvent): void {
             const n = event.name;
             if (n.endsWith("v2"))

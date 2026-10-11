@@ -69,6 +69,8 @@ Item {
         id: mouseArea
 
         anchors.fill: layout
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
         onClicked: event => {
             const ws = (layout.childAt(event.x, event.y) as Workspace)?.ws; // qmllint disable incompatible-type
             if (ws) {

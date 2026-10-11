@@ -2,6 +2,7 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQuick.Effects
+import Quickshell
 import Quickshell.Wayland
 import Caelestia.Config
 import qs.components
@@ -188,7 +189,33 @@ WlSessionLockSurface {
         id: wallpaperBackground
 
         CachingImage {
+            id: bgImg
+
+            anchors.fill: parent
             path: Wallpapers.current
+            // Push-in on load: the image decodes async, so start from Ready,
+            // not from completion (the animation would finish on an empty item).
+            scale: 1.0
+
+            Component.onCompleted: {
+                if (status === Image.Ready)
+                    zoomIn.start();
+            }
+            onStatusChanged: {
+                if (status === Image.Ready)
+                    zoomIn.restart();
+            }
+
+            Anim {
+                id: zoomIn
+
+                target: bgImg
+                property: "scale"
+                from: 1.0
+                to: 1.4
+                duration: 2000
+                easing.type: Easing.OutCubic
+            }
         }
     }
 

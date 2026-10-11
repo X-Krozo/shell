@@ -22,6 +22,9 @@ Item {
     required property bool sourceMuted
     required property real brightness
 
+    // Emitted on direct slider interaction so the wrapper can hold the OSD open
+    signal interacted()
+
     implicitWidth: layout.implicitWidth + Tokens.padding.large + layout.anchors.horizontalCenterOffset * 2
     implicitHeight: layout.implicitHeight + Tokens.padding.large * 2
 
@@ -54,7 +57,10 @@ Item {
                 value: root.volume
                 externalValue: root.volume
                 boostEnabled: true
-                onMoved: Audio.setVolume(value)
+                onMoved: {
+                    Audio.setVolume(value);
+                    root.interacted();
+                }
             }
         }
 
@@ -82,7 +88,10 @@ Item {
                     icon: Icons.getMicVolumeIcon(value, root.sourceMuted)
                 value: root.sourceVolume
                 boostEnabled: true
-                    onMoved: Audio.setSourceVolume(value)
+                onMoved: {
+                    Audio.setSourceVolume(value);
+                    root.interacted();
+                }
                 }
             }
         }
@@ -113,7 +122,10 @@ Item {
 
                     icon: `brightness_${(Math.round(value * 6) + 1)}`
                     value: root.brightness
-                    onMoved: root.monitor?.setBrightness(value)
+                    onMoved: {
+                        root.monitor?.setBrightness(value);
+                        root.interacted();
+                    }
                 }
             }
         }
