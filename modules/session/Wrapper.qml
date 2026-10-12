@@ -11,7 +11,7 @@ Item {
     required property bool sidebarVisible
     readonly property real nonAnimWidth: content.implicitWidth
     // Tooltip seat height from the menu content (0 when idle).
-    readonly property real tipExtent: content.item?.tipExtent ?? 0
+    readonly property real tipExtent: content.item?.tipExtent ?? 0 // qmllint disable missing-property
 
     readonly property bool shouldBeActive: screenState.session && Config.session.enabled
     property real offsetScale: shouldBeActive ? 0 : 1

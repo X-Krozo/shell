@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import Caelestia
 import Caelestia.Config
 import Caelestia.Services
@@ -23,7 +22,7 @@ Item {
     // Tooltip seat: height the panel blob extends upward while a tooltip
     // shows. Pill size is fixed (measurer-based), so this never loops.
     // Plain property (not readonly): the Behavior below needs to assign it.
-    property real tipExtent: layout.hoveredName.length > 0 ? tip.implicitHeight + 14 : 0
+    property real tipExtent: layout.hoveredName.length > 0 ? tipPill.implicitHeight + 14 : 0
 
     Behavior on tipExtent {
         Anim {}
@@ -125,9 +124,9 @@ Item {
                 } else {
                     // Never strand the uptime text: clear it on leave even
                     // if a refresh landed mid-hover, then forget the stamp.
-                    const h = parent.parent.hoveredName;
+                    const h = parent.parent.hoveredName; // qmllint disable missing-property
                     if ((tip !== "" && h === tip) || /^\d\d:\d\d:\d\d$/.test(h))
-                        parent.parent.hoveredName = "";
+                        parent.parent.hoveredName = ""; // qmllint disable missing-property
                     tip = "";
                 }
             }
@@ -144,7 +143,7 @@ Item {
                         const m = String(Math.floor(s % 3600 / 60)).padStart(2, "0");
                         gifHover.tip = `${d}:${h}:${m}`;
                         if (gifHover.containsMouse)
-                            gifHover.parent.parent.hoveredName = gifHover.tip;
+                            gifHover.parent.parent.hoveredName = gifHover.tip; // qmllint disable missing-property
                     }
                 }
             }
@@ -188,7 +187,7 @@ Item {
     // background, glass finish (restrained top sheen, hairline light
     // border). Only fades/scales in.
     StyledRect {
-        id: tip
+        id: tipPill
 
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: layout.top
@@ -267,9 +266,9 @@ Item {
         onHoveredChanged: {
             if (hovered) {
                 forceActiveFocus();
-                parent.hoveredName = tooltip;
-            } else if (tooltip !== "" && parent.hoveredName === tooltip) {
-                parent.hoveredName = "";
+                parent.hoveredName = tooltip; // qmllint disable missing-property
+            } else if (tooltip !== "" && parent.hoveredName === tooltip) { // qmllint disable missing-property
+                parent.hoveredName = ""; // qmllint disable missing-property
             }
         }
 
