@@ -202,24 +202,8 @@ Item {
         radius: Tokens.rounding.large
         transformOrigin: Item.Bottom
 
-        gradient: Gradient {
-            orientation: Gradient.Vertical
-
-            GradientStop {
-                position: 0
-                color: Qt.rgba(1, 1, 1, 0.13)
-            }
-
-            GradientStop {
-                position: 0.45
-                color: Qt.rgba(1, 1, 1, 0.03)
-            }
-
-            GradientStop {
-                position: 1
-                color: Qt.rgba(1, 1, 1, 0.0)
-            }
-        }
+        // Native popout finish: flat surface container, no custom sheen.
+        color: Colours.tPalette.m3surfaceContainer
         Behavior on opacity {
             Anim {}
         }

@@ -83,7 +83,9 @@ Item {
         anchors.verticalCenter: parent.verticalCenter
         anchors.right: parent.right
         anchors.rightMargin: sidebar.width * (1 - sidebar.offsetScale)
-        clip: sidebar.visible
+        // Clip only while the session panel is mid-slide: a fully-open menu
+        // (the only time tooltips show) must not clip the tooltip seat above it.
+        clip: sidebar.visible && session.offsetScale > 0.02
 
         implicitWidth: session.implicitWidth * (1 - session.offsetScale)
         implicitHeight: session.implicitHeight
