@@ -1,9 +1,9 @@
 name: Update flake inputs
 
+# Disabled on this fork (manual runs only): needs upstream GitHub App
+# secrets (CLIENT_ID / APP_PRIVATE_KEY) that don't exist here.
 on:
   workflow_dispatch:
-  schedule:
-    - cron: "0 0 * * 0"
 
 jobs:
   update-flake:
