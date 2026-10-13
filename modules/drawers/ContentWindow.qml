@@ -220,10 +220,10 @@ StyledWindow {
 
             panel: panels.sessionWrapper
             deformAmount: 0.2
-            x: panels.sessionWrapper.x + panels.session.x + geometry.insetLeft(root.borderThickness)
+            x: (panels.session.visible ? panels.sessionWrapper.x + panels.session.x : -10000) + geometry.insetLeft(root.borderThickness)
             implicitWidth: panels.session.width
             // Seat for the hover tooltip: grows upward, buttons never move.
-            y: panels.sessionWrapper.y + panels.session.y + geometry.insetTop(root.borderThickness) - panels.session.tipExtent
+            y: (panels.session.visible ? panels.sessionWrapper.y + panels.session.y : -10000) + geometry.insetTop(root.borderThickness) - panels.session.tipExtent
             implicitHeight: panels.session.height + panels.session.tipExtent
         }
 
@@ -242,7 +242,7 @@ StyledWindow {
 
             panel: panels.osdWrapper
             deformAmount: 0.25
-            x: panels.osdWrapper.x + panels.osd.x + geometry.insetLeft(root.borderThickness)
+            x: (panels.osd.visible ? panels.osdWrapper.x + panels.osd.x : -10000) + geometry.insetLeft(root.borderThickness)
             implicitWidth: panels.osd.width
         }
 
@@ -251,11 +251,11 @@ StyledWindow {
 
             panel: panels.volumeDockWrapper
             deformAmount: 0.25
-            x: panels.volumeDockWrapper.x + panels.volumeDock.x + geometry.insetLeft(root.borderThickness)
+            x: (panels.volumeDock.visible ? panels.volumeDockWrapper.x + panels.volumeDock.x : -10000) + geometry.insetLeft(root.borderThickness)
             implicitWidth: panels.volumeDock.width
             // Seat for the hover tooltip: grows upward like the session blob.
             // Follows the dive via the dock's live y.
-            y: panels.volumeDockWrapper.y + panels.volumeDock.y + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
+            y: (panels.volumeDock.visible ? panels.volumeDockWrapper.y + panels.volumeDock.y : -10000) + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
             implicitHeight: panels.volumeDock.height + panels.volumeDock.tooltipExtent
         }
 
@@ -278,12 +278,12 @@ StyledWindow {
             id: popoutBg
 
             // Extra extent to prevent axis movement deformation partially detaching panel from bar
-            property real extraExtent: panels.popouts.isDetached ? 0 : 0.2
+            property real extraExtent: panels.popouts.isDetached ? 0 : (panels.popouts.hasCurrent ? 0.2 : 0)
 
             panel: panels.popoutsWrapper
             deformAmount: panels.popouts.isDetached ? 0.05 : panels.popouts.hasCurrent ? 0.15 : 0.1
-            x: panels.popoutsWrapper.x + panels.popouts.x + geometry.insetLeft(root.borderThickness) - (geometry.horizontal ? 0 : panels.popouts.width * extraExtent)
-            y: panels.popoutsWrapper.y + panels.popouts.y + geometry.insetTop(root.borderThickness) - (geometry.barOnTop ? panels.popouts.height * extraExtent : 0)
+            x: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.x + panels.popouts.x : -10000) + geometry.insetLeft(root.borderThickness) - (geometry.horizontal ? 0 : panels.popouts.width * extraExtent)
+            y: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.y + panels.popouts.y : -10000) + geometry.insetTop(root.borderThickness) - (geometry.barOnTop ? panels.popouts.height * extraExtent : 0)
             implicitWidth: panels.popouts.width * (geometry.horizontal ? 1 : 1 + extraExtent)
             implicitHeight: panels.popouts.height * (geometry.horizontal ? 1 + extraExtent : 1)
 
@@ -405,8 +405,10 @@ StyledWindow {
         property real deformAmount: 0.15
 
         group: blobGroup
-        x: panel.x + geometry.insetLeft(root.borderThickness)
-        y: panel.y + geometry.insetTop(root.borderThickness)
+        // Parked panels park their blobs far off-screen: a parked blob would
+        // otherwise smin-merge with the border ring and dim window borders.
+        x: (panel.visible ? panel.x : -10000) + geometry.insetLeft(root.borderThickness)
+        y: (panel.visible ? panel.y : -10000) + geometry.insetTop(root.borderThickness)
         implicitWidth: panel.width
         implicitHeight: panel.height
         radius: Tokens.rounding.extraLarge
