@@ -247,6 +247,19 @@ StyledWindow {
         }
 
         PanelBg {
+            id: volumeDockBg
+
+            panel: panels.volumeDockWrapper
+            deformAmount: 0.25
+            x: panels.volumeDockWrapper.x + panels.volumeDock.x + geometry.insetLeft(root.borderThickness)
+            implicitWidth: panels.volumeDock.width
+            // Seat for the hover tooltip: grows upward like the session blob.
+            // Follows the dive via the dock's live y.
+            y: panels.volumeDockWrapper.y + panels.volumeDock.y + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
+            implicitHeight: panels.volumeDock.height + panels.volumeDock.tooltipExtent
+        }
+
+        PanelBg {
             id: notifsBg
 
             panel: panels.notifications
@@ -327,6 +340,9 @@ StyledWindow {
             }
             osd.transform: Matrix4x4 {
                 matrix: osdBg.deformMatrix
+            }
+            volumeDock.transform: Matrix4x4 {
+                matrix: volumeDockBg.deformMatrix
             }
             notifications.transform: Matrix4x4 {
                 matrix: notifsBg.deformMatrix

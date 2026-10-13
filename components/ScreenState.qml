@@ -13,6 +13,9 @@ PersistentProperties {
     property bool sidebar
     property bool appVolumes
     property bool mediaFullscreen
+    // Integrated nexus (bar popout) visibility; separate from the
+    // WindowFactory standalone window.
+    property bool nexus
 
     // Dashboard state
     property int dashboardTab

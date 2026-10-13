@@ -4,7 +4,6 @@ import Quickshell.Io
 import Caelestia
 import qs.components.misc
 import qs.services
-import qs.modules.nexus
 
 Scope {
     id: root
@@ -32,8 +31,12 @@ Scope {
     CustomShortcut {
         // qmllint enable unresolved-type
         name: "nexus"
-        description: "Open nexus"
-        onPressed: WindowFactory.create()
+        description: "Toggle integrated nexus"
+        onPressed: {
+            const v = ShellState.forActive();
+            if (v)
+                v.nexus = !v.nexus;
+        }
     }
 
     // qmllint disable unresolved-type
@@ -100,6 +103,27 @@ Scope {
                 if (!wasOpen)
                     chordWatch.restart();
             }
+        }
+    }
+
+    // qmllint disable unresolved-type
+    CustomShortcut {
+        // qmllint enable unresolved-type
+        name: "closeAll"
+        description: "Close all shell panels"
+        onPressed: {
+            const v = ShellState.forActive();
+            if (!v)
+                return;
+            v.session = false;
+            v.launcher = false;
+            v.dashboard = false;
+            v.sidebar = false;
+            v.osd = false;
+            v.utilities = false;
+            v.appVolumes = false;
+            v.nexus = false;
+            v.mediaFullscreen = false;
         }
     }
 
@@ -179,8 +203,20 @@ Scope {
     }
 
     IpcHandler {
+        function toggle(): void {
+            const v = ShellState.forActive();
+            if (v)
+                v.nexus = !v.nexus;
+        }
         function open(): void {
-            WindowFactory.create();
+            const v = ShellState.forActive();
+            if (v)
+                v.nexus = true;
+        }
+        function close(): void {
+            const v = ShellState.forActive();
+            if (v)
+                v.nexus = false;
         }
 
         target: "nexus"

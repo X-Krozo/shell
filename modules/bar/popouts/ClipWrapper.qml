@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import Quickshell
 import qs.components
+import qs.services
 import qs.modules.bar.popouts // Need to import this module so the Wrapper type is the same as others
 
 Item {
@@ -11,6 +12,7 @@ Item {
     required property ShellScreen screen
     required property string position
     required property real borderThickness
+    required property ScreenState screenState
 
     readonly property alias content: content
     readonly property bool horizontal: position !== "left"
@@ -88,6 +90,7 @@ Item {
         id: content
 
         screen: root.screen
+        screenState: root.screenState
         offsetScale: root.offsetScale
 
         // Only the anchors for the current bar edge resolve, the others are undefined

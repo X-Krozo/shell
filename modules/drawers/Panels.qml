@@ -24,6 +24,8 @@ Item {
 
     readonly property alias osd: osd
     readonly property alias osdWrapper: osdWrapper
+    readonly property alias volumeDock: volumeDockWrapper.dock
+    readonly property alias volumeDockWrapper: volumeDockWrapper
     readonly property alias notifications: notifications
     readonly property alias session: session
     readonly property alias sessionWrapper: sessionWrapper
@@ -101,6 +103,31 @@ Item {
         }
     }
 
+    // Per-app volume dock: edge panel after the session panel (paints on
+    // top), parked left of the OSD and session, OSD behaviour. The OSD
+    // term glides continuously so the dock tracks OSD slides smoothly.
+    Item {
+        id: volumeDockWrapper
+
+        readonly property alias dock: volumeDock
+
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.right: parent.right
+        anchors.rightMargin: sessionWrapper.anchors.rightMargin + session.width * (1 - session.offsetScale) + osd.implicitWidth * (1 - osd.offsetScale)
+
+        implicitWidth: volumeDock.implicitWidth * (1 - volumeDock.offsetScale)
+        implicitHeight: volumeDock.implicitHeight
+
+        Sidebar.VolumeDock {
+            id: volumeDock
+
+            screenState: root.screenState
+
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+        }
+    }
+
     Launcher.Wrapper {
         id: launcher
 
@@ -128,6 +155,7 @@ Item {
         id: popoutsWrapper
 
         screen: root.screen
+        screenState: root.screenState
         position: root.geometry.position
         borderThickness: root.borderThickness
     }

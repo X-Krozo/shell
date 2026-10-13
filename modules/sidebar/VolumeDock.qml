@@ -14,10 +14,10 @@ Item {
     id: root
 
     required property ScreenState screenState
-    property real osdOffset: 0
 
     readonly property bool shouldBeActive: root.screenState.appVolumes
     property real offsetScale: shouldBeActive ? 0 : 1
+    property double openedAt: 0
 
     readonly property string hoveredName: {
         const delegate = hoveredIndex >= 0 ? sliders.itemAt(hoveredIndex) : null;
@@ -26,14 +26,56 @@ Item {
 
     property real tooltipExtent: hoveredName.length > 0 ? tooltip.implicitHeight + Tokens.spacing.medium : 0
 
+    // OSD-clone edge panel: slides in from the right edge, parked left
+    // of the OSD while open, auto-hides on the shared OSD fuse.
+    // Hide dives downward (own height) while fading, like a sinking row.
+    // OSD-clone exit: slides straight right while fading.
     visible: offsetScale < 1
-    anchors.rightMargin: (-implicitWidth - 5 - osdOffset) * offsetScale
-    implicitWidth: body.implicitWidth + Tokens.padding.large * 2
-    implicitHeight: body.implicitHeight + Tokens.padding.large * 2 + tooltipExtent
+    anchors.rightMargin: (-implicitWidth - 5) * offsetScale
+    // Collapse to zero when shut (like the OSD loader unloading) so the
+    // background blob vanishes with the panel instead of lingering.
+    // Fixed box (body only): the hover tooltip floats above it and grows
+    // only the background blob, never moving the dock — power-menu logic.
+    // Zero when shut so the blob vanishes with the panel.
+    implicitWidth: offsetScale < 1 ? body.implicitWidth : 0
+    implicitHeight: offsetScale < 1 ? body.implicitHeight : 0
     opacity: 1 - offsetScale
+
+    function show(): void {
+        root.screenState.appVolumes = true;
+        openedAt = Date.now();
+        hideTimer.restart();
+    }
 
     Behavior on offsetScale {
         Anim {}
+    }
+
+    // No auto-hide: stays until GIF-toggled or the OSD/session closes.
+    // The timer only throttles re-show pacing (see show()).
+    Timer {
+        id: hideTimer
+
+        interval: Config.osd.hideDelay
+    }
+
+    // Follow the transient panels: OSD or session closing takes the dock
+    // along, so it never strands (covers every close path at once).
+    // GIF toggles restart the fuse here so the toggle needs no wiring.
+    Connections {
+        target: root.screenState
+
+        function onAppVolumesChanged(): void {
+            if (root.screenState.appVolumes) {
+                openedAt = Date.now();
+                hideTimer.restart();
+            }
+        }
+
+        function onSessionChanged(): void {
+            if (!root.screenState.session)
+                root.screenState.appVolumes = false;
+        }
     }
 
     Behavior on tooltipExtent {
@@ -43,14 +85,14 @@ Item {
     StyledRect {
         id: body
 
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.bottom: parent.bottom
-        anchors.bottomMargin: Tokens.padding.large
+        anchors.centerIn: parent
 
         implicitWidth: layout.implicitWidth + Tokens.padding.large * 2
         implicitHeight: layout.implicitHeight + Tokens.padding.large * 2
-        radius: Tokens.rounding.large
-        color: Colours.tPalette.m3surfaceContainerLow
+        // Transparent: the background blob (volumeDockBg) carries the theme,
+        // exactly like OSD content over osdBg.
+        radius: Tokens.rounding.extraLarge
+        color: "transparent"
 
         RowLayout {
             id: layout
@@ -102,7 +144,10 @@ Item {
                             icon: Icons.getVolumeIcon(value, column.modelData?.audio?.muted ?? false)
                             value: column.modelData?.audio?.volume ?? 0
                             externalValue: column.modelData?.audio?.volume ?? 0
-                            onMoved: Audio.setStreamVolume(column.modelData, value)
+                            onMoved: {
+                                Audio.setStreamVolume(column.modelData, value);
+                                hideTimer.restart();
+                            }
                             onHoveredChanged: {
                                 if (streamSlider.hovered)
                                     root.hoveredIndex = column.index;
@@ -127,20 +172,22 @@ Item {
 
     property int hoveredIndex: -1
 
+    // Hover pill mirrors the power-menu tooltip: same paddings, font,
+    // scale-in and seat growth (width stays content-based: app names vary).
     StyledRect {
         id: tooltip
 
         anchors.bottom: body.top
-        anchors.bottomMargin: 0
+        anchors.bottomMargin: 4
         anchors.horizontalCenter: body.horizontalCenter
 
-        implicitWidth: label.implicitWidth + Tokens.padding.large * 2
-        implicitHeight: (label.implicitHeight + Tokens.padding.medium * 2) * 0.75
+        implicitWidth: label.implicitWidth + Tokens.padding.extraSmall * 2
+        implicitHeight: label.implicitHeight + Tokens.padding.medium * 2
 
         visible: opacity > 0
         opacity: root.hoveredName.length > 0 ? 1 : 0
-        scale: root.hoveredName.length > 0 ? 1 : 0.85
-        color: "transparent"
+        scale: root.hoveredName.length > 0 ? 1 : 0.6
+        color: Colours.tPalette.m3surfaceContainer
         radius: Tokens.rounding.large
         transformOrigin: Item.Bottom
 
@@ -149,11 +196,9 @@ Item {
         }
 
         Behavior on scale {
-            Anim {}
-        }
-
-        Behavior on implicitHeight {
-            Anim {}
+            Anim {
+                type: Anim.StandardSmall
+            }
         }
 
         StyledText {
@@ -162,7 +207,7 @@ Item {
             anchors.centerIn: parent
             text: root.hoveredName
             color: Colours.palette.m3onSurface
-            font: Tokens.font.body.builders.medium.scale(0.9).build()
+            font: Tokens.font.body.builders.medium.scale(0.75).build()
         }
     }
 }

@@ -15,6 +15,7 @@ Item {
 
     required property ShellScreen screen
     required property real offsetScale
+    required property ScreenState screenState
 
     readonly property alias content: content
     readonly property alias winfo: winfo
@@ -59,6 +60,7 @@ Item {
     function close(): void {
         hasCurrent = false;
         detachedMode = "";
+        root.screenState.nexus = false;
     }
 
     implicitWidth: nonAnimWidth
@@ -88,6 +90,19 @@ Item {
         id: popoutState
 
         onDetachRequested: mode => root.detach(mode)
+    }
+
+    // Integrated nexus (Super+I / IPC): hosts nexus here instead of a
+    // separate window. Closing the panel clears the flag back.
+    Connections {
+        target: root.screenState
+
+        function onNexusChanged(): void {
+            if (root.screenState.nexus)
+                root.detach("appearance");
+            else if (root.isDetached)
+                root.close();
+        }
     }
 
     HyprlandFocusGrab {

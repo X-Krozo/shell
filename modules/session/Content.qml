@@ -117,7 +117,15 @@ Item {
 
             property string tip: ""
 
-            onClicked: root.screenState.osd = !root.screenState.osd
+            // Left-click toggles the OSD sliders; right-click toggles the
+            // per-app volume dock in the sidebar.
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: event => {
+                if (event.button === Qt.RightButton)
+                    root.screenState.appVolumes = !root.screenState.appVolumes;
+                else
+                    root.screenState.osd = !root.screenState.osd;
+            }
             onContainsMouseChanged: {
                 if (containsMouse) {
                     uptimeProc.running = true;

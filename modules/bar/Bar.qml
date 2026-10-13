@@ -197,6 +197,7 @@ GridLayout {
                         screen: root.screen
                         fullscreen: root.fullscreen
                         horizontal: root.horizontal
+                        screenState: root.screenState
                     }
                 }
             }

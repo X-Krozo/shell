@@ -17,6 +17,7 @@ StyledClippingRect {
     required property ShellScreen screen
     required property bool fullscreen
     required property bool horizontal
+    required property ScreenState screenState
 
     readonly property HyprlandMonitor monitor: Hypr.monitorFor(screen)
     readonly property bool onSpecial: monitor?.lastIpcObject.specialWorkspace?.name !== ""
@@ -200,8 +201,15 @@ StyledClippingRect {
 
         MouseArea {
             anchors.fill: layout
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
             cursorShape: Qt.PointingHandCursor
             onClicked: event => {
+                // Right-click toggles the launcher, which opens on the
+                // workspace grid (empty search resets on every open).
+                if (event.button === Qt.RightButton) {
+                    root.screenState.launcher = !root.screenState.launcher;
+                    return;
+                }
                 const ws = (layout.childAt(event.x, event.y) as Workspace)?.ws;
                 if (!ws)
                     return;

@@ -18,6 +18,9 @@ Item {
     readonly property bool shouldBeActive: screenState.osd && Config.osd.enabled && !(screenState.utilities && Config.utilities.enabled)
     property real offsetScale: shouldBeActive ? 0 : 1
     property real sidebarOffset: sidebarOrSessionVisible ? 12 : 0
+    // Mic slider visibility (mirrors its WrappedLoader): source changes
+    // only pop the OSD when there's a slider to show for them.
+    readonly property bool micVisible: Config.osd.enableMicrophone && (!Config.osd.enableBrightness || !screenState.session)
 
     property real volume
     property bool muted
@@ -83,22 +86,28 @@ Item {
 
     Connections {
         function onMutedChanged(): void {
-            root.show();
+            // Boot flood (Audio init) updates values without popping the
+            // panel: with no auto-hide, a boot open would strand it.
+            if (!root.booting)
+                root.show();
             root.muted = Audio.muted;
         }
 
         function onVolumeChanged(): void {
-            root.show();
+            if (!root.booting)
+                root.show();
             root.volume = Audio.volume;
         }
 
         function onSourceMutedChanged(): void {
-            root.show();
+            if (!root.booting && root.micVisible)
+                root.show();
             root.sourceMuted = Audio.sourceMuted;
         }
 
         function onSourceVolumeChanged(): void {
-            root.show();
+            if (!root.booting && root.micVisible)
+                root.show();
             root.sourceVolume = Audio.sourceVolume;
         }
 
@@ -107,21 +116,20 @@ Item {
 
     Connections {
         function onBrightnessChanged(): void {
-            root.show();
+            if (!root.booting)
+                root.show();
             root.brightness = root.monitor?.brightness ?? 0;
         }
 
         target: root.monitor
     }
 
+    // No auto-hide: the OSD stays until toggled, clicked outside, or
+    // escaped. The timer only throttles re-show pacing (see show()).
     Timer {
         id: timer
 
         interval: root.Config.osd.hideDelay
-        onTriggered: {
-            if (!root.hovered)
-                root.screenState.osd = false;
-        }
     }
 
     Connections {
