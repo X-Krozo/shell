@@ -41,6 +41,15 @@ ColumnLayout {
         toggle.onToggled: Nmcli.enableWifi(checked)
     }
 
+    Toggle {
+        visible: root.view === "wireless"
+        Layout.preferredHeight: visible ? implicitHeight : 0
+        label: Tr.tr("Hotspot")
+        checked: Hotspot.enabled
+        toggle.disabled: Hotspot.busy
+        toggle.onToggled: Hotspot.setEnabled(checked)
+    }
+
     StyledText {
         visible: root.view === "wireless"
         Layout.preferredHeight: visible ? implicitHeight : 0
