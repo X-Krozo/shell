@@ -18,6 +18,9 @@ Item {
     readonly property bool shouldBeActive: root.screenState.appVolumes
     property real offsetScale: shouldBeActive ? 0 : 1
     property double openedAt: 0
+    // Set on the first genuine open; the one-shot boot timer below only
+    // fires if nothing ever opened the dock this boot (persisted flag).
+    property bool bootDone: false
 
     readonly property string hoveredName: {
         const delegate = hoveredIndex >= 0 ? sliders.itemAt(hoveredIndex) : null;
@@ -42,6 +45,7 @@ Item {
     opacity: 1 - offsetScale
 
     function show(): void {
+        root.bootDone = true;
         root.screenState.appVolumes = true;
         openedAt = Date.now();
         hideTimer.restart();
@@ -57,6 +61,18 @@ Item {
         id: hideTimer
 
         interval: Config.osd.hideDelay
+    }
+
+    // One-shot boot close: a persisted appVolumes=true would otherwise
+    // strand the dock open (no auto-hide by design). Fires once after
+    // boot; any genuine open cancels it via bootDone, so it never
+    // auto-hides after.
+    Timer {
+        id: bootCloseTimer
+
+        interval: Config.osd.hideDelay
+        running: root.screenState.appVolumes && !root.bootDone
+        onTriggered: root.screenState.appVolumes = false
     }
 
     // Follow the transient panels: OSD or session closing takes the dock

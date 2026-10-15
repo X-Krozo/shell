@@ -69,6 +69,8 @@ StyledWindow {
     name: "drawers"
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
     WlrLayershell.layer: (fsTransitionProg > 0 && contentItem.Config.general.showOverFullscreen) || (hasSpecialWorkspace && hasFullscreenOnNormalWs) ? WlrLayer.Overlay : WlrLayer.Top
+    // NOTE: osd excluded from keyboard focus: it must never steal keys from
+    // apps (media keys are global shortcuts; its sliders are mouse-driven).
     WlrLayershell.keyboardFocus: screenState.launcher || screenState.session || screenState.mediaFullscreen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
 
     mask: hasFullscreen ? emptyRegion : regions
@@ -213,18 +215,21 @@ StyledWindow {
 
             panel: panels.launcher
             deformAmount: 0.1
+            // Parks downward: further down when closed, never toward the screen.
+            y: (panel.visible ? panel.y : panel.y + 100) + geometry.insetTop(root.borderThickness)
         }
 
         PanelBg {
             id: sessionBg
 
             panel: panels.sessionWrapper
+            open: panels.session.visible
             deformAmount: 0.2
-            x: (panels.session.visible ? panels.sessionWrapper.x + panels.session.x : -10000) + geometry.insetLeft(root.borderThickness)
-            implicitWidth: panels.session.width
+            x: (panels.session.visible ? panels.sessionWrapper.x + panels.session.x : panels.sessionWrapper.x + panels.session.x + 100) + geometry.insetLeft(root.borderThickness)
+            implicitWidth: panels.session.visible ? panels.session.width : 1
             // Seat for the hover tooltip: grows upward, buttons never move.
-            y: (panels.session.visible ? panels.sessionWrapper.y + panels.session.y : -10000) + geometry.insetTop(root.borderThickness) - panels.session.tipExtent
-            implicitHeight: panels.session.height + panels.session.tipExtent
+            y: panels.sessionWrapper.y + panels.session.y + geometry.insetTop(root.borderThickness) - panels.session.tipExtent
+            implicitHeight: panels.session.visible ? panels.session.height + panels.session.tipExtent : 1
         }
 
         PanelBg {
@@ -232,6 +237,8 @@ StyledWindow {
 
             panel: panels.sidebar
             deformAmount: 0.03
+            // Parks rightward: further right when closed, never toward the screen.
+            x: (panel.visible ? panel.x : panel.x + 100) + geometry.insetLeft(root.borderThickness)
             implicitHeight: panel.height * (1 / rawDeformMatrix.m22) + 2
             exclude: panels.sidebar.offsetScale > 0.08 ? [] : [utilsBg]
             bottomLeftRadius: Math.max(0, Math.min(1, panels.sidebar.offsetScale / 0.3)) * radius
@@ -241,22 +248,27 @@ StyledWindow {
             id: osdBg
 
             panel: panels.osdWrapper
+            open: panels.osd.visible
             deformAmount: 0.25
-            x: (panels.osd.visible ? panels.osdWrapper.x + panels.osd.x : -10000) + geometry.insetLeft(root.borderThickness)
-            implicitWidth: panels.osd.width
+            x: (panels.osd.visible ? panels.osdWrapper.x + panels.osd.x : panels.osdWrapper.x + panels.osd.x + 100) + geometry.insetLeft(root.borderThickness)
+            implicitWidth: panels.osd.visible ? panels.osd.width : 1
+            // Wrapper never hides (height collapses to 0); gate on the
+            // inner panel so the blob never goes degenerate at rest.
+            implicitHeight: panels.osd.visible ? panels.osdWrapper.height : 1
         }
 
         PanelBg {
             id: volumeDockBg
 
             panel: panels.volumeDockWrapper
+            open: panels.volumeDock.visible
             deformAmount: 0.25
-            x: (panels.volumeDock.visible ? panels.volumeDockWrapper.x + panels.volumeDock.x : -10000) + geometry.insetLeft(root.borderThickness)
-            implicitWidth: panels.volumeDock.width
+            x: (panels.volumeDock.visible ? panels.volumeDockWrapper.x + panels.volumeDock.x : panels.volumeDockWrapper.x + panels.volumeDock.x + 100) + geometry.insetLeft(root.borderThickness)
+            implicitWidth: panels.volumeDock.visible ? panels.volumeDock.width : 1
             // Seat for the hover tooltip: grows upward like the session blob.
             // Follows the dive via the dock's live y.
-            y: (panels.volumeDock.visible ? panels.volumeDockWrapper.y + panels.volumeDock.y : -10000) + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
-            implicitHeight: panels.volumeDock.height + panels.volumeDock.tooltipExtent
+            y: panels.volumeDockWrapper.y + panels.volumeDock.y + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
+            implicitHeight: panels.volumeDock.visible ? panels.volumeDock.height + panels.volumeDock.tooltipExtent : 1
         }
 
         PanelBg {
@@ -270,6 +282,8 @@ StyledWindow {
 
             panel: panels.utilities
             deformAmount: panels.sidebar.visible ? 0.1 : 0.15
+            // Parks downward: further down when closed, never toward the screen.
+            y: (panel.visible ? panel.y : panel.y + 100) + geometry.insetTop(root.borderThickness)
             exclude: panels.sidebar.offsetScale > 0.08 ? [] : [sidebarBg]
             topLeftRadius: Math.max(0, Math.min(1, panels.sidebar.offsetScale / 0.3)) * radius
         }
@@ -281,11 +295,12 @@ StyledWindow {
             property real extraExtent: panels.popouts.isDetached ? 0 : (panels.popouts.hasCurrent ? 0.2 : 0)
 
             panel: panels.popoutsWrapper
+            open: panels.popoutsWrapper.visible
             deformAmount: panels.popouts.isDetached ? 0.05 : panels.popouts.hasCurrent ? 0.15 : 0.1
-            x: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.x + panels.popouts.x : -10000) + geometry.insetLeft(root.borderThickness) - (geometry.horizontal ? 0 : panels.popouts.width * extraExtent)
-            y: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.y + panels.popouts.y : -10000) + geometry.insetTop(root.borderThickness) - (geometry.barOnTop ? panels.popouts.height * extraExtent : 0)
-            implicitWidth: panels.popouts.width * (geometry.horizontal ? 1 : 1 + extraExtent)
-            implicitHeight: panels.popouts.height * (geometry.horizontal ? 1 + extraExtent : 1)
+            x: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.x + panels.popouts.x : panels.popoutsWrapper.x + panels.popouts.x - 100) + geometry.insetLeft(root.borderThickness) - (geometry.horizontal ? 0 : panels.popouts.width * extraExtent)
+            y: (panels.popoutsWrapper.visible ? panels.popoutsWrapper.y + panels.popouts.y : panels.popoutsWrapper.y + panels.popouts.y - 100) + geometry.insetTop(root.borderThickness) - (geometry.barOnTop ? panels.popouts.height * extraExtent : 0)
+            implicitWidth: panels.popoutsWrapper.visible ? panels.popouts.width * (geometry.horizontal ? 1 : 1 + extraExtent) : 1
+            implicitHeight: panels.popoutsWrapper.visible ? panels.popouts.height * (geometry.horizontal ? 1 + extraExtent : 1) : 1
 
             Behavior on extraExtent {
                 Anim {}
@@ -400,17 +415,28 @@ StyledWindow {
         component: panels
     }
 
+    // PARKED-BLOB RULES (read before touching!): the ring + blobs share
+    // one SDF shader. A parked blob MUST leave the merge group entirely
+    // (open ? blobGroup : null): merely moving it off-screen still lets its
+    // SDF fringe eat the ring (1px rows / holes at rest), and collapsing it
+    // to 0 in any dimension NaN-poisons the shader (stable garbage slabs).
+    // Absolute far-away positions are banned too (wide blobs stay on-screen).
+    // Parked = ungrouped + 1x1. Open/animation states track the panel.
     component PanelBg: BlobRect {
         required property Item panel
         property real deformAmount: 0.15
+        // Ungroup when parked: an unregistered shape contributes no SDF,
+        // so it can neither merge with the ring nor strand damage.
+        // (Defaults to panel visibility; shells that never hide override it.)
+        property bool open: panel.visible
 
-        group: blobGroup
-        // Parked panels park their blobs far off-screen: a parked blob would
+        group: open ? blobGroup : null
+        // Parked panels park their blobs off-screen: a parked blob would
         // otherwise smin-merge with the border ring and dim window borders.
-        x: (panel.visible ? panel.x : -10000) + geometry.insetLeft(root.borderThickness)
-        y: (panel.visible ? panel.y : -10000) + geometry.insetTop(root.borderThickness)
-        implicitWidth: panel.width
-        implicitHeight: panel.height
+        x: (panel.visible ? panel.x : panel.x - 100) + geometry.insetLeft(root.borderThickness)
+        y: (panel.visible ? panel.y : panel.y - 100) + geometry.insetTop(root.borderThickness)
+        implicitWidth: panel.visible ? panel.width : 1
+        implicitHeight: panel.visible ? panel.height : 1
         radius: Tokens.rounding.extraLarge
         deformScale: (deformAmount * Config.appearance.deformScale) / 10000
     }

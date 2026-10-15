@@ -111,6 +111,7 @@ StyledRect {
 
                 anchors.left: parent.left
                 anchors.top: parent.top
+                anchors.topMargin: -3
                 width: TokenConfig.sizes.notifs.image
                 height: TokenConfig.sizes.notifs.image
                 visible: root.hasImage || root.hasAppIcon

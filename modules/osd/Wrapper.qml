@@ -13,6 +13,9 @@ Item {
     required property ScreenState screenState
     required property bool sidebarOrSessionVisible
 
+    // Hover state, driven by the global pointer tracker in Interactions.qml
+    // (the sliders consume their own hover events, so this can't be a local
+    // MouseArea). While true the auto-close fuse is paused.
     property bool hovered
     readonly property Brightness.Monitor monitor: Brightness.getMonitorForScreen(root.screen)
     readonly property bool shouldBeActive: screenState.osd && Config.osd.enabled && !(screenState.utilities && Config.utilities.enabled)
@@ -28,32 +31,9 @@ Item {
     property bool sourceMuted
     property real brightness
 
-    // Fresh (user-opened) OSD waits on a long fuse so sliders stay reachable;
-    // interacting switches to the normal fuse from the next change.
-    // Startup opens (Audio/brightness init flood) must still auto-hide, so
-    // opens during the boot window use the normal fuse.
-    property bool booting: true
-
-    Timer {
-        interval: 3000
-        running: true
-        onTriggered: root.booting = false
-    }
-
     // Timestamp of the last open; close paths check Date.now() - openedAt
     // imperatively so the opening gesture can never count as click-outside.
-    // (A binding would latch: nothing re-triggers it after it turns true.)
     property double openedAt: 0
-
-    function show(longFuse = false): void {
-        // Drag-opens wait on a long fuse (reach the sliders first); system
-        // opens (keys, BT/device changes, boot) use the normal fuse.
-        if (!screenState.osd)
-            timer.interval = (longFuse && !booting) ? root.Config.osd.hideDelay * 3 : root.Config.osd.hideDelay;
-        screenState.osd = true;
-        openedAt = Date.now();
-        timer.restart();
-    }
 
     Component.onCompleted: {
         volume = Audio.volume;
@@ -63,50 +43,53 @@ Item {
         brightness = root.monitor?.brightness ?? 0;
     }
 
+    function show(longFuse = false): void {
+        // Drag-opens wait on a long fuse (reach the sliders first); system
+        // opens (keys, BT/device changes, boot) use the normal fuse.
+        if (!screenState.osd)
+            timer.interval = longFuse ? root.Config.osd.hideDelay * 3 : root.Config.osd.hideDelay;
+        screenState.osd = true;
+        openedAt = Date.now();
+        timer.restart();
+    }
+
+    // Boot splash: pop immediately, then auto-close after hideDelay unless
+    // hovered. (An interval-0 timer defers past object construction.)
+    Timer {
+        interval: 0
+        running: true
+        onTriggered: root.show()
+    }
+
     visible: offsetScale < 1
     anchors.rightMargin: (-implicitWidth - 5 - sidebarOffset) * offsetScale
     implicitWidth: content.implicitWidth
-    implicitHeight: content.implicitHeight
+    implicitHeight: content.implicitHeight || 300 // Hard coded fallback for first open (keeps the drag-catch zone full-size while closed)
     opacity: 1 - offsetScale
 
     Behavior on offsetScale {
         Anim {}
     }
 
-    MouseArea {
-        anchors.fill: parent
-        onClicked: {
-            if (Date.now() - root.openedAt < 400)
-                return;
-            if (root.shouldBeActive && !content.containsMouse) {
-                root.screenState.osd = false;
-            }
-        }
-    }
-
     Connections {
         function onMutedChanged(): void {
-            // Boot flood (Audio init) updates values without popping the
-            // panel: with no auto-hide, a boot open would strand it.
-            if (!root.booting)
-                root.show();
+            root.show();
             root.muted = Audio.muted;
         }
 
         function onVolumeChanged(): void {
-            if (!root.booting)
-                root.show();
+            root.show();
             root.volume = Audio.volume;
         }
 
         function onSourceMutedChanged(): void {
-            if (!root.booting && root.micVisible)
+            if (root.micVisible)
                 root.show();
             root.sourceMuted = Audio.sourceMuted;
         }
 
         function onSourceVolumeChanged(): void {
-            if (!root.booting && root.micVisible)
+            if (root.micVisible)
                 root.show();
             root.sourceVolume = Audio.sourceVolume;
         }
@@ -116,24 +99,44 @@ Item {
 
     Connections {
         function onBrightnessChanged(): void {
-            if (!root.booting)
-                root.show();
+            root.show();
             root.brightness = root.monitor?.brightness ?? 0;
         }
 
         target: root.monitor
     }
 
-    // No auto-hide: the OSD stays until toggled, clicked outside, or
-    // escaped. The timer only throttles re-show pacing (see show()).
+    // Auto-close fuse: fires hideDelay after the last open, or 3s after the
+    // pointer leaves the panel. Paused entirely while hovered.
     Timer {
         id: timer
 
         interval: root.Config.osd.hideDelay
+        onTriggered: {
+            if (!root.hovered)
+                root.screenState.osd = false;
+        }
+    }
+
+    onHoveredChanged: {
+        if (root.hovered) {
+            timer.stop();
+        } else if (root.screenState.osd) {
+            timer.interval = 3000;
+            timer.restart();
+        }
+    }
+
+    // Clear stale hover when the OSD closes with the pointer resting over its
+    // region (no pointer move ⇒ Interactions can't refresh it), otherwise the
+    // next open would see hovered=true and refuse to auto-close.
+    onShouldBeActiveChanged: {
+        if (!root.shouldBeActive)
+            root.hovered = false;
     }
 
     Connections {
-        // Direct slider use switches to the normal fuse from the next change.
+        // Direct slider use restarts the fuse from the next change.
         function onInteracted(): void {
             timer.interval = root.Config.osd.hideDelay;
             timer.restart();
@@ -149,7 +152,9 @@ Item {
         anchors.left: parent.left
 
         asynchronous: true
-        active: root.shouldBeActive || root.visible
+        // Always loaded (in background at boot): opens show full content
+        // instantly instead of sliding an empty panel while it loads.
+        active: true
 
         sourceComponent: Content {
             monitor: root.monitor

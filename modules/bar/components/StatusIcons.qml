@@ -18,10 +18,14 @@ StyledRect {
     readonly property alias items: iconColumn
 
     transformOrigin: Item.Center
-    scale: bar.hoveredEntry === "statusIcons" ? 1.06 : 1
+    // Rise instead of scale: translation never resamples, so icons and
+    // text stay crisp (a 1.06 scale stretches rest-rasterized pixels).
+    transform: Translate {
+        y: bar.hoveredEntry === "statusIcons" ? -3 : 0
 
-    Behavior on scale {
-        Anim {}
+        Behavior on y {
+            Anim {}
+        }
     }
 
     readonly property int spacing: Tokens.spacing.medium / 2

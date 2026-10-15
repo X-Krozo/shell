@@ -113,6 +113,12 @@ CustomMouseArea {
         // Ignored within the open grace period so the opening gesture can't close it.
         if (screenState.osd && Date.now() - panels.osd.openedAt > 400 && !inRightPanel(panels.osdWrapper, event.x, event.y)) {
             screenState.osd = false;
+            // While the OSD is open the mask spans the whole window, so this
+            // click never reaches the app beneath and therefore never clears
+            // the session menu's focus grab — dismiss the menu here instead
+            // (unless the click actually landed on the session panel).
+            if (!inRightPanel(panels.sessionWrapper, event.x, event.y))
+                screenState.session = false;
             return;
         }
 
@@ -129,10 +135,10 @@ CustomMouseArea {
     onContainsMouseChanged: {
         if (!containsMouse) {
             bar.hoveredEntry = "";
-            // Only hide if not activated by shortcut
+            // Never hide the OSD on mouse-leave: it stays until toggled,
+            // clicked outside, or escaped (a fresh open would otherwise die
+            // on the next mouse motion after its 400ms grace).
             if (!osdShortcutActive) {
-                if (Date.now() - root.panels.osd.openedAt > 400)
-                    screenState.osd = false;
                 root.panels.osd.hovered = false;
             }
 
@@ -165,6 +171,11 @@ CustomMouseArea {
             root.panels.osd.hovered = inRightPanel(panels.osdWrapper, x, y);
             return;
         }
+
+        // Track OSD hover so its auto-close fuse pauses while the pointer
+        // is over the panel (sliders consume their own hover events, so the
+        // global tracker is the only reliable source).
+        root.panels.osd.hovered = root.screenState.osd && inRightPanel(panels.osdWrapper, x, y);
 
         // Show bar in non-exclusive mode on hover
         if (!screenState.bar && Config.bar.showOnHover && geometry.barContains(x, y, true))

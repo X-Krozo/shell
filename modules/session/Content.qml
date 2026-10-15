@@ -275,7 +275,19 @@ Item {
 
         Keys.onEnterPressed: exec()
         Keys.onReturnPressed: exec()
-        Keys.onEscapePressed: root.screenState.session = false
+        Keys.onEscapePressed: {
+            // Scoped close-all: only fires while this surface owns focus,
+            // so apps keep Esc everywhere else.
+            root.screenState.session = false;
+            root.screenState.launcher = false;
+            root.screenState.dashboard = false;
+            root.screenState.sidebar = false;
+            root.screenState.osd = false;
+            root.screenState.utilities = false;
+            root.screenState.appVolumes = false;
+            root.screenState.nexus = false;
+            root.screenState.mediaFullscreen = false;
+        }
         Keys.onPressed: event => {
             if (!Config.session.vimKeybinds)
                 return;

@@ -69,11 +69,14 @@ StyledClippingRect {
     property real blur: onSpecial ? 1 : 0
 
     transformOrigin: Item.Center
-    // No grow while the special overlay covers this (it would animate hidden content)
-    scale: bar.hoveredEntry === "workspaces" && !root.onSpecial ? 1.06 : 1
+    // No rise while the special overlay covers this (it would animate hidden content).
+    // Rise instead of scale: translation never resamples, so indicators stay crisp.
+    transform: Translate {
+        y: bar.hoveredEntry === "workspaces" && !root.onSpecial ? -3 : 0
 
-    Behavior on scale {
-        Anim {}
+        Behavior on y {
+            Anim {}
+        }
     }
 
     function workspaceIndex(id: int): int {

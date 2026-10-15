@@ -199,7 +199,19 @@ Item {
                 list.currentList?.incrementCurrentIndex();
         }
 
-        Keys.onEscapePressed: root.screenState.launcher = false
+        Keys.onEscapePressed: {
+            // Scoped close-all: only fires while this surface owns focus,
+            // so apps keep Esc everywhere else.
+            root.screenState.session = false;
+            root.screenState.launcher = false;
+            root.screenState.dashboard = false;
+            root.screenState.sidebar = false;
+            root.screenState.osd = false;
+            root.screenState.utilities = false;
+            root.screenState.appVolumes = false;
+            root.screenState.nexus = false;
+            root.screenState.mediaFullscreen = false;
+        }
 
         Keys.onPressed: event => {
             if (event.key === Qt.Key_Backspace && search.text.length === 0 && root.hasTyped) {

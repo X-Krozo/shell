@@ -21,10 +21,14 @@ StyledRect {
     property bool expanded
 
     transformOrigin: Item.Center
-    scale: bar.hoveredEntry === "tray" ? 1.06 : 1
+    // Rise instead of scale: translation never resamples, so icons stay
+    // crisp (a 1.06 scale stretches rest-rasterized pixels).
+    transform: Translate {
+        y: bar.hoveredEntry === "tray" ? -3 : 0
 
-    Behavior on scale {
-        Anim {}
+        Behavior on y {
+            Anim {}
+        }
     }
 
     readonly property real nonAnimWidth: {

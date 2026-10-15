@@ -76,6 +76,15 @@ Item {
                 return;
             }
         }
+        // Scoped close-all alongside it (apps keep Esc everywhere else).
+        root.screenState.session = false;
+        root.screenState.launcher = false;
+        root.screenState.dashboard = false;
+        root.screenState.sidebar = false;
+        root.screenState.osd = false;
+        root.screenState.utilities = false;
+        root.screenState.appVolumes = false;
+        root.screenState.mediaFullscreen = false;
         close();
     }
 
