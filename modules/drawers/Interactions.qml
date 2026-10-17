@@ -52,6 +52,24 @@ CustomMouseArea {
         return x > Math.min(width - Config.border.minThickness, geometry.insetLeft(borderThickness) + panel.x) && withinPanelHeight(panel, x, y);
     }
 
+    // The volume dock is an OSD sibling, so treat it as a panel area: a click
+    // on it is not "outside", and hovering its sliders must not time out the OSD.
+    function inVolumeDock(x: real, y: real): bool {
+        return panels.volumeDock.visible && withinPanelWidth(panels.volumeDockWrapper, x, y) && withinPanelHeight(panels.volumeDockWrapper, x, y);
+    }
+
+    // The OSD can open without a pointer move (volume keys, wheel on a slider),
+    // so re-arm hover on open: otherwise the fuse would close the OSD beneath a
+    // pointer that is already parked on the dock.
+    Connections {
+        target: screenState
+
+        function onOsdChanged(): void {
+            if (screenState.osd && root.containsMouse && inVolumeDock(root.mouseX, root.mouseY))
+                root.panels.osd.hovered = true;
+        }
+    }
+
     function inTopPanel(panel: Item, x: real, y: real): bool {
         const panelHeight = panel.height * (1 - (panel.offsetScale ?? 0)); // qmllint disable missing-property
         return y < Math.max(Config.border.minThickness, geometry.insetTop(Config.border.thickness) + panelHeight) && withinPanelWidth(panel, x, y);
@@ -111,7 +129,7 @@ CustomMouseArea {
 
         // Close OSD when clicking outside OSD area (always, regardless of bar click).
         // Ignored within the open grace period so the opening gesture can't close it.
-        if (screenState.osd && Date.now() - panels.osd.openedAt > 400 && !inRightPanel(panels.osdWrapper, event.x, event.y)) {
+        if (screenState.osd && Date.now() - panels.osd.openedAt > 400 && !inRightPanel(panels.osdWrapper, event.x, event.y) && !inVolumeDock(event.x, event.y)) {
             screenState.osd = false;
             // While the OSD is open the mask spans the whole window, so this
             // click never reaches the app beneath and therefore never clears
@@ -168,14 +186,15 @@ CustomMouseArea {
         const dragY = y - dragStart.y;
 
         if (fullscreen) {
-            root.panels.osd.hovered = inRightPanel(panels.osdWrapper, x, y);
+            root.panels.osd.hovered = inRightPanel(panels.osdWrapper, x, y) || inVolumeDock(x, y);
             return;
         }
 
         // Track OSD hover so its auto-close fuse pauses while the pointer
         // is over the panel (sliders consume their own hover events, so the
-        // global tracker is the only reliable source).
-        root.panels.osd.hovered = root.screenState.osd && inRightPanel(panels.osdWrapper, x, y);
+        // global tracker is the only reliable source). The volume dock counts
+        // too, so its sliders can't let the OSD time out underneath.
+        root.panels.osd.hovered = root.screenState.osd && (inRightPanel(panels.osdWrapper, x, y) || inVolumeDock(x, y));
 
         // Show bar in non-exclusive mode on hover
         if (!screenState.bar && Config.bar.showOnHover && geometry.barContains(x, y, true))

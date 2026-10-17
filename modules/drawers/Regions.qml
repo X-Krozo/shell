@@ -68,6 +68,14 @@ Region {
     }
 
     R {
+        panel: root.panels.volumeDockWrapper
+        // The per-app volume dock is an OSD sibling but had no region here, so
+        // it sat outside the input mask: clicks on it fell through to the app
+        // below and cleared the focus grab, closing the open menu. Width is 0
+        // while the dock is shut, so nothing extra is captured then.
+    }
+
+    R {
         panel: root.panels.notifications
         y: 0
         height: panel.height + root.geometry.insetTop(root.borderThickness)

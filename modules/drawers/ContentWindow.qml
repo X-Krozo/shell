@@ -43,6 +43,14 @@ StyledWindow {
     readonly property real shadowOpacity: 0.7 * (1 - fsTransitionProg)
     readonly property real borderLayoutThickness: hasFullscreen ? 0 : contentItem.Config.border.thickness
 
+    // Fullscreen: the shell stays behind the fullscreen app unless
+    // `showOverFullscreen` opts the whole thing over, but the OSD is always
+    // allowed over it so its sliders stay draggable there. The fullscreen mask
+    // below exposes only the OSD strip, so nothing else of the shell is visible
+    // or hit-testable over a fullscreen app.
+    readonly property bool shellOverFullscreen: contentItem.Config.general.showOverFullscreen
+    readonly property bool osdOverFullscreen: contentItem.Config.osd.enabled && root.hasFullscreen
+
     property color surfaceColour: Colours.tPalette.m3surface
 
     readonly property int dragMaskPadding: {
@@ -68,7 +76,7 @@ StyledWindow {
 
     name: "drawers"
     WlrLayershell.exclusionMode: ExclusionMode.Ignore
-    WlrLayershell.layer: (fsTransitionProg > 0 && contentItem.Config.general.showOverFullscreen) || (hasSpecialWorkspace && hasFullscreenOnNormalWs) ? WlrLayer.Overlay : WlrLayer.Top
+    WlrLayershell.layer: root.osdOverFullscreen || (fsTransitionProg > 0 && root.shellOverFullscreen) || (hasSpecialWorkspace && hasFullscreenOnNormalWs) ? WlrLayer.Overlay : WlrLayer.Top
     // NOTE: osd excluded from keyboard focus: it must never steal keys from
     // apps (media keys are global shortcuts; its sliders are mouse-driven).
     WlrLayershell.keyboardFocus: screenState.launcher || screenState.session || screenState.mediaFullscreen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
@@ -103,10 +111,14 @@ StyledWindow {
     Region {
         id: emptyRegion
 
-        x: panels.notifications.x + geometry.insetLeft(root.borderThickness)
-        y: panels.notifications.y + geometry.insetTop(root.borderThickness)
-        width: panels.notifications.width
-        height: panels.notifications.height
+        // Fullscreen input mask. The OSD strip is always live so its sliders
+        // stay draggable over a fullscreen app; the notifications strip is only
+        // added when the whole shell is allowed over fullscreen, otherwise it
+        // would swallow clicks meant for the app underneath.
+        x: root.shellOverFullscreen ? panels.notifications.x + geometry.insetLeft(root.borderThickness) : 0
+        y: root.shellOverFullscreen ? panels.notifications.y + geometry.insetTop(root.borderThickness) : 0
+        width: root.shellOverFullscreen ? panels.notifications.width : 0
+        height: root.shellOverFullscreen ? panels.notifications.height : 0
 
         Region {
             x: root.width - width

@@ -22,7 +22,7 @@ Item {
     // Tooltip seat: height the panel blob extends upward while a tooltip
     // shows. Pill size is fixed (measurer-based), so this never loops.
     // Plain property (not readonly): the Behavior below needs to assign it.
-    property real tipExtent: layout.hoveredName.length > 0 ? tipPill.implicitHeight + 14 : 0
+    property real tipExtent: layout.hoveredName.length > 0 ? tipPill.implicitHeight + 6 : 0
 
     Behavior on tipExtent {
         Anim {}
@@ -198,8 +198,9 @@ Item {
         id: tipPill
 
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenterOffset: 4
         anchors.bottom: layout.top
-        anchors.bottomMargin: 4
+        anchors.bottomMargin: -4.5
 
         implicitWidth: tipMeasurer.implicitWidth + Tokens.padding.extraSmall * 2
         implicitHeight: tipMeasurer.implicitHeight + Tokens.padding.medium * 2

@@ -140,8 +140,27 @@ Singleton {
         return "";
     }
 
+    // Icon lookup for running apps. Quickshell's heuristicLookup only matches
+    // a desktop entry's id or StartupWMClass, so streams that report a
+    // friendly name (e.g. "VLC media player", whose entry has no
+    // StartupWMClass and id "vlc") missed and fell back to the placeholder.
+    // After it fails, match exactly (case-insensitively) on the entry's
+    // display name, then id, then startup class.
+    function lookupAppEntry(name: string): var {
+        if (!name)
+            return null;
+
+        const direct = DesktopEntries.heuristicLookup(name);
+        if (direct)
+            return direct;
+
+        const lower = name.toLowerCase();
+        const apps = DesktopEntries.applications.values;
+        return apps.find(a => (a.name ?? "").toLowerCase() === lower) ?? apps.find(a => (a.id ?? "").toLowerCase() === lower) ?? apps.find(a => (a.startupClass ?? "").toLowerCase() === lower) ?? null;
+    }
+
     function getAppIcon(name: string, fallback: string): string {
-        const icon = DesktopEntries.heuristicLookup(name)?.icon;
+        const icon = lookupAppEntry(name)?.icon;
         if (fallback !== "undefined")
             return Quickshell.iconPath(icon, fallback);
         return Quickshell.iconPath(icon);

@@ -29,10 +29,16 @@ Item {
 
     property real tooltipExtent: hoveredName.length > 0 ? tooltip.implicitHeight + Tokens.spacing.medium : 0
 
-    // OSD-clone edge panel: slides in from the right edge, parked left
-    // of the OSD while open, auto-hides on the shared OSD fuse.
-    // Hide dives downward (own height) while fading, like a sinking row.
-    // OSD-clone exit: slides straight right while fading.
+    // Hold the last label while the pill fades. Clearing hover would otherwise
+    // zero the label, snapping the pill to a sliver mid-fade. The power menu
+    // gets the same stability from its fixed-width measurer.
+    property string pillText: ""
+
+    onHoveredNameChanged: if (hoveredName !== "")
+        pillText = hoveredName
+
+    // Horizontal slide exactly like the OSD: parks off-screen right when
+    // shut, slides left into place while fading in.
     visible: offsetScale < 1
     anchors.rightMargin: (-implicitWidth - 5) * offsetScale
     // Collapse to zero when shut (like the OSD loader unloading) so the
@@ -83,6 +89,10 @@ Item {
 
         function onAppVolumesChanged(): void {
             if (root.screenState.appVolumes) {
+                // A genuine open cancels the one-shot boot close below;
+                // without this the boot timer would shut every GIF-toggle
+                // open ~2s later (show() is never called on that path).
+                root.bootDone = true;
                 openedAt = Date.now();
                 hideTimer.restart();
             }
@@ -221,7 +231,7 @@ Item {
             id: label
 
             anchors.centerIn: parent
-            text: root.hoveredName
+            text: root.pillText
             color: Colours.palette.m3onSurface
             font: Tokens.font.body.builders.medium.scale(0.75).build()
         }

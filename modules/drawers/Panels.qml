@@ -43,6 +43,37 @@ Item {
     anchors.topMargin: geometry.insetTop(borderThickness)
     anchors.bottomMargin: geometry.insetBottom(borderThickness)
 
+    // Per-app volume dock: declared FIRST so it paints beneath every other
+    // wrapper (in one QML window, paint order = declaration order), so it
+    // animates below the OSD, the session/power menu, and the sidebar.
+    Item {
+        id: volumeDockWrapper
+
+        readonly property alias dock: volumeDock
+
+        anchors.verticalCenter: parent.verticalCenter
+        anchors.right: parent.right
+        anchors.rightMargin: sessionWrapper.anchors.rightMargin + session.width * (1 - session.offsetScale) + osd.implicitWidth * (1 - osd.offsetScale)
+        // Same fence the session panel uses, and for the same reason: clip
+        // only MID-SLIDE so the dock's slide can't paint over the open menu,
+        // but stop clipping once it's parked (offsetScale 0). Otherwise the
+        // clip would also chop off the hover tooltip, which floats above the
+        // body, outside the wrapper box.
+        clip: (sidebar.visible || session.visible) && volumeDock.offsetScale > 0.02
+
+        implicitWidth: volumeDock.implicitWidth * (1 - volumeDock.offsetScale)
+        implicitHeight: volumeDock.implicitHeight
+
+        Sidebar.VolumeDock {
+            id: volumeDock
+
+            screenState: root.screenState
+
+            anchors.verticalCenter: parent.verticalCenter
+            anchors.right: parent.right
+        }
+    }
+
     Item {
         id: osdWrapper
 
@@ -97,31 +128,6 @@ Item {
 
             screenState: root.screenState
             sidebarVisible: sidebar.visible
-
-            anchors.verticalCenter: parent.verticalCenter
-            anchors.right: parent.right
-        }
-    }
-
-    // Per-app volume dock: edge panel after the session panel (paints on
-    // top), parked left of the OSD and session, OSD behaviour. The OSD
-    // term glides continuously so the dock tracks OSD slides smoothly.
-    Item {
-        id: volumeDockWrapper
-
-        readonly property alias dock: volumeDock
-
-        anchors.verticalCenter: parent.verticalCenter
-        anchors.right: parent.right
-        anchors.rightMargin: sessionWrapper.anchors.rightMargin + session.width * (1 - session.offsetScale) + osd.implicitWidth * (1 - osd.offsetScale)
-
-        implicitWidth: volumeDock.implicitWidth * (1 - volumeDock.offsetScale)
-        implicitHeight: volumeDock.implicitHeight
-
-        Sidebar.VolumeDock {
-            id: volumeDock
-
-            screenState: root.screenState
 
             anchors.verticalCenter: parent.verticalCenter
             anchors.right: parent.right
