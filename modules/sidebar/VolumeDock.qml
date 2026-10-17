@@ -27,8 +27,6 @@ Item {
         return delegate?.modelData ? Audio.getStreamName(delegate.modelData) ?? "" : "";
     }
 
-    property real tooltipExtent: hoveredName.length > 0 ? tooltip.implicitHeight + Tokens.spacing.medium : 0
-
     // Hold the last label while the pill fades. Clearing hover would otherwise
     // zero the label, snapping the pill to a sliver mid-fade. The power menu
     // gets the same stability from its fixed-width measurer.
@@ -103,6 +101,26 @@ Item {
                 root.screenState.appVolumes = false;
         }
     }
+
+    // How far the pill's bottom edge sits BELOW the dock body's top edge:
+    // positive tucks the label down onto the drawer's shoulder.
+    readonly property real tooltipDrop: 1
+
+    // Drawer glass showing around the label slot — how much taller the
+    // expanded drawer is than the label itself (above it) while a tooltip is
+    // up. Purely a glass margin; the label's own size is unchanged.
+    readonly property real tooltipPad: 20
+
+    // Expanded-drawer extent: while a tooltip is up the dock's background blob
+    // grows upward just enough to reach the label slot (plus tooltipPad of
+    // glass around it), so the label sits on the drawer's own glass. It never
+    // grows sideways — the slot is a compact fixed width (see tooltipWidth), so
+    // a long app name is cut with an ellipsis instead of widening the panel.
+    // Keyed on the hovered name alone (exactly like the power menu's tipExtent):
+    // the drawer starts collapsing the moment the pointer leaves a slider, in
+    // parallel with the label's fade — latching it on the fade instead made the
+    // collapse lag a whole animation behind.
+    property real tooltipExtent: hoveredName.length > 0 ? Math.max(0, tooltip.implicitHeight - root.tooltipDrop) + root.tooltipPad : 0
 
     Behavior on tooltipExtent {
         Anim {}
@@ -198,17 +216,25 @@ Item {
 
     property int hoveredIndex: -1
 
-    // Hover pill mirrors the power-menu tooltip: same paddings, font,
-    // scale-in and seat growth (width stays content-based: app names vary).
+    // Hover pill mirrors the power-menu tooltip: same paddings, font and
+    // scale-in. Compact fixed-width slot — deliberately narrower than the dock
+    // body (and never wider, so it can't hang off the panel over the
+    // wallpaper). It never follows the hovered app name, so nothing about the
+    // panel resizes per app; a name that doesn't fit is cut with an ellipsis.
+    readonly property real tooltipWidth: Math.min(110, Math.max(0, body.width - Tokens.padding.extraSmall * 2))
+
     StyledRect {
         id: tooltip
 
         anchors.bottom: body.top
-        anchors.bottomMargin: 4
+        anchors.bottomMargin: -root.tooltipDrop
+        // Nudged a few px right of the dock body's centre, like the power
+        // menu's tooltip (which sits 4px right of its buttons).
         anchors.horizontalCenter: body.horizontalCenter
+        anchors.horizontalCenterOffset: 4
 
-        implicitWidth: label.implicitWidth + Tokens.padding.extraSmall * 2
-        implicitHeight: label.implicitHeight + Tokens.padding.medium * 2
+        implicitWidth: root.tooltipWidth + Tokens.padding.extraSmall * 2
+        implicitHeight: label.implicitHeight + Tokens.padding.small * 2
 
         visible: opacity > 0
         opacity: root.hoveredName.length > 0 ? 1 : 0
@@ -227,10 +253,17 @@ Item {
             }
         }
 
+        // No measurer: the slot width is fixed (see tooltipWidth), so the
+        // label lays itself out against it on a single line, eliding whatever
+        // doesn't fit. One source (the label) means text and pill can never
+        // disagree.
         StyledText {
             id: label
 
             anchors.centerIn: parent
+            width: root.tooltipWidth
+            elide: Text.ElideRight
+            horizontalAlignment: Text.AlignHCenter
             text: root.pillText
             color: Colours.palette.m3onSurface
             font: Tokens.font.body.builders.medium.scale(0.75).build()

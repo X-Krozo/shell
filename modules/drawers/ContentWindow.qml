@@ -161,6 +161,9 @@ StyledWindow {
             root.screenState.dashboard = false;
             root.screenState.osd = false;
             root.screenState.utilities = false;
+            // The dock is an OSD sibling: no grab of its own, so it rides the
+            // same clear, otherwise it strands when the click lands on an app.
+            root.screenState.appVolumes = false;
             panels.popouts.hasCurrent = false;
             bar.closeTray();
         }
@@ -275,12 +278,17 @@ StyledWindow {
             panel: panels.volumeDockWrapper
             open: panels.volumeDock.visible
             deformAmount: 0.25
+            // Expanded drawer: while a tooltip is up the blob grows upward into
+            // the label slot so the label sits on the drawer's glass. No
+            // sideways growth at all — the slot is a compact fixed width, so a
+            // long app name is ellipsised instead of widening the panel. Read
+            // through a local so the parked/open branches can't disagree.
+            property real tooltipExtent: panels.volumeDock.visible ? panels.volumeDock.tooltipExtent : 0
             x: (panels.volumeDock.visible ? panels.volumeDockWrapper.x + panels.volumeDock.x : panels.volumeDockWrapper.x + panels.volumeDock.x + 100) + geometry.insetLeft(root.borderThickness)
             implicitWidth: panels.volumeDock.visible ? panels.volumeDock.width : 1
-            // Seat for the hover tooltip: grows upward like the session blob.
             // Follows the dive via the dock's live y.
-            y: panels.volumeDockWrapper.y + panels.volumeDock.y + geometry.insetTop(root.borderThickness) - panels.volumeDock.tooltipExtent
-            implicitHeight: panels.volumeDock.visible ? panels.volumeDock.height + panels.volumeDock.tooltipExtent : 1
+            y: panels.volumeDockWrapper.y + panels.volumeDock.y + geometry.insetTop(root.borderThickness) - tooltipExtent
+            implicitHeight: panels.volumeDock.visible ? panels.volumeDock.height + tooltipExtent : 1
         }
 
         PanelBg {

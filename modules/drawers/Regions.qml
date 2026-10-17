@@ -96,18 +96,18 @@ Region {
         height: root.geometry.horizontal ? root.panels.popouts.hasCurrent ? root.panels.popouts.nonAnimHeight : panel.height * (1 - root.panels.popoutsWrapper.offsetScale) : panel.height
     }
 
-    // Click-to-dismiss: with the OSD open, the root XOR above only exposes
-    // the panel strip + edge ring, so clicks on the desktop/app fall
-    // straight through to that window and the shell never sees them — the
-    // OSD can't be closed by clicking outside (worst when it's the only
-    // panel open). Subtracting the full window empties the root build, so
-    // the final XOR yields the whole window: every click lands in
-    // Interactions, which closes the OSD when it's outside the panel.
+    // Click-to-dismiss: with the OSD (or the volume dock) open, the root XOR
+    // above only exposes the panel strip + edge ring, so clicks on the
+    // desktop/app fall straight through to that window and the shell never
+    // sees them — the panel can't be closed by clicking outside (worst when
+    // it's the only thing open). Subtracting the full window empties the root
+    // build, so the final XOR yields the whole window: every click lands in
+    // Interactions, which closes the panel when it's outside it.
     // 0×0 while closed = no-op; mask reverts to sliver/ring then.
     Region {
         intersection: Intersection.Subtract
-        width: root.panels.osd.shouldBeActive ? root.win.width : 0
-        height: root.panels.osd.shouldBeActive ? root.win.height : 0
+        width: root.panels.osd.shouldBeActive || root.panels.volumeDock.shouldBeActive ? root.win.width : 0
+        height: root.panels.osd.shouldBeActive || root.panels.volumeDock.shouldBeActive ? root.win.height : 0
     }
 
     component R: Region {

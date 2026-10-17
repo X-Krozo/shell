@@ -127,17 +127,32 @@ CustomMouseArea {
                 return;
         }
 
-        // Close OSD when clicking outside OSD area (always, regardless of bar click).
-        // Ignored within the open grace period so the opening gesture can't close it.
-        if (screenState.osd && Date.now() - panels.osd.openedAt > 400 && !inRightPanel(panels.osdWrapper, event.x, event.y) && !inVolumeDock(event.x, event.y)) {
-            screenState.osd = false;
-            // While the OSD is open the mask spans the whole window, so this
-            // click never reaches the app beneath and therefore never clears
-            // the session menu's focus grab — dismiss the menu here instead
-            // (unless the click actually landed on the session panel).
-            if (!inRightPanel(panels.sessionWrapper, event.x, event.y))
+        // One outside-click rule for the mask-handled panels: the OSD and the
+        // per-app volume dock. Neither takes a focus grab (the OSD pops on every
+        // volume/brightness change and must never steal input; the dock is its
+        // sibling), so Regions.qml instead empties the input mask and spans the
+        // whole window while either is open. Consequence: this click never
+        // reaches the app beneath, so Hyprland never clears the grab held by the
+        // panels they stack against (session / sidebar) and nothing else
+        // dismisses the OSD or the dock. Hence one rule covering every
+        // combination — osd alone, dock alone, or either with session/sidebar:
+        // a click that lands on none of them dismisses all four; a click that
+        // lands on one is spared and handled by that panel. Each panel keeps its
+        // own grace period so the gesture that opened it can't close it.
+        // (Clicks on an app, and Escape, close them all via the focus grab's
+        // onCleared in ContentWindow.qml.)
+        if (!inRightPanel(panels.osdWrapper, event.x, event.y) && !inVolumeDock(event.x, event.y) && !inRightPanel(panels.sessionWrapper, event.x, event.y) && !inRightPanel(panels.sidebar, event.x, event.y)) {
+            const osdReady = screenState.osd && Date.now() - panels.osd.openedAt > 400;
+            const dockReady = screenState.appVolumes && Date.now() - panels.volumeDock.openedAt > 400;
+            if (osdReady || dockReady) {
+                if (osdReady)
+                    screenState.osd = false;
+                if (dockReady)
+                    screenState.appVolumes = false;
                 screenState.session = false;
-            return;
+                screenState.sidebar = false;
+                return;
+            }
         }
 
         // Click-to-toggle bar popouts: click the icon/area itself; same name already open closes it
