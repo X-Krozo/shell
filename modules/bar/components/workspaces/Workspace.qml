@@ -212,6 +212,15 @@ GridLayout {
                 Behavior on implicitSize {
                     Anim {}
                 }
+
+                // Themed placeholder instead of the theme's broken-image glyph
+                // when the window class maps to no desktop entry.
+                MaterialIcon {
+                    anchors.fill: parent
+                    visible: parent.source === ""
+                    text: "web_asset"
+                    color: Colours.palette.m3onSurfaceVariant
+                }
             }
         }
     }
@@ -286,6 +295,15 @@ GridLayout {
 
                     implicitSize: Tokens.sizes.bar.innerWidth * 0.42
                     source: Icons.getAppIcon(modelData.lastIpcObject.class, "image-missing")
+
+                    // Themed placeholder (see the main icon above): unknown
+                    // window classes get a glyph, never the broken-image icon.
+                    MaterialIcon {
+                        anchors.fill: parent
+                        visible: parent.source === ""
+                        text: "web_asset"
+                        color: Colours.palette.m3onSurfaceVariant
+                    }
 
                     Behavior on scale {
                         Anim {

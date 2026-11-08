@@ -199,6 +199,15 @@ StyledRect {
         source: Icons.getAppIcon(root.ipc?.class ?? "", "image-missing")
         asynchronous: true
         mipmap: true
+
+        // Themed placeholder instead of the broken-image glyph for classes
+        // with no desktop entry.
+        MaterialIcon {
+            anchors.fill: parent
+            visible: parent.source === ""
+            text: "web_asset"
+            color: Colours.palette.m3onSurfaceVariant
+        }
     }
 
     // Wait for Hyprland IPC to reflect the move, then fly to the new slot (ii-style race guard)

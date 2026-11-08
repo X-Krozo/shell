@@ -50,6 +50,15 @@ PageBase {
                 asynchronous: true
                 implicitSize: Math.round(Tokens.font.icon.large.pointSize * 3)
                 source: Quickshell.iconPath(root.app?.icon, "image-missing")
+
+                // Themed placeholder instead of the broken-image glyph when
+                // the desktop entry has no resolvable icon string.
+                MaterialIcon {
+                    anchors.fill: parent
+                    visible: (root.app?.icon ?? "") === ""
+                    text: "web_asset"
+                    color: Colours.palette.m3onSurfaceVariant
+                }
             }
 
             ColumnLayout {

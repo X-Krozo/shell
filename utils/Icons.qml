@@ -159,11 +159,29 @@ Singleton {
         return apps.find(a => (a.name ?? "").toLowerCase() === lower) ?? apps.find(a => (a.id ?? "").toLowerCase() === lower) ?? apps.find(a => (a.startupClass ?? "").toLowerCase() === lower) ?? null;
     }
 
+    // App/window icon path, or "" when the name maps to no desktop entry —
+    // callers overlay a themed placeholder (MaterialIcon, e.g. "web_asset",
+    // "music_note") instead of the theme's broken-image glyph. `fallback` is
+    // only consulted for RESOLVED entries, never shown for unknown apps.
     function getAppIcon(name: string, fallback: string): string {
         const icon = lookupAppEntry(name)?.icon;
-        if (fallback !== "undefined")
-            return Quickshell.iconPath(icon, fallback);
-        return Quickshell.iconPath(icon);
+        return icon ? Quickshell.iconPath(icon, fallback) : "";
+    }
+
+    // Match audio STREAM app names to desktop entries. Streams carry raw
+    // binary names that desktop entries never match directly (e.g.
+    // "Terraria.bin.x86_64"). Scrub suffixes and retry; returns "" when no
+    // entry matches (callers pick a themed fallback — CLI tools have no icon).
+    function getAppStreamIcon(streamName: string): string {
+        const direct = lookupAppEntry(streamName)?.icon;
+        if (direct)
+            return Quickshell.iconPath(direct);
+        // Suffixes/platform bits are word-bounded: "Terraria.bin.x86_64" ->
+        // "Terraria". Skip retry when scrubbing doesn't change anything.
+        const scrubbed = (streamName.split(/[ ._-]/)[0] ?? streamName).trim();
+        const icon = (scrubbed && scrubbed.toLowerCase() !== streamName.toLowerCase())
+            ? lookupAppEntry(scrubbed)?.icon : undefined;
+        return icon ? Quickshell.iconPath(icon) : "";
     }
 
     function getAppCategoryIcon(name: string, fallback: string): string {

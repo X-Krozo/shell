@@ -59,6 +59,15 @@ PageBase {
                         asynchronous: true
                         implicitSize: Math.round(Tokens.font.icon.large.pointSize * 1.8)
                         source: Quickshell.iconPath(appItem.modelData.icon, "image-missing")
+
+                        // Themed placeholder instead of the broken-image glyph
+                        // when the entry has no resolvable icon string.
+                        MaterialIcon {
+                            anchors.fill: parent
+                            visible: (appItem.modelData.icon ?? "") === ""
+                            text: "web_asset"
+                            color: Colours.palette.m3onSurfaceVariant
+                        }
                     }
 
                     ColumnLayout {

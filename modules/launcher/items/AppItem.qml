@@ -39,6 +39,15 @@ Item {
             source: Quickshell.iconPath(root.modelData?.icon, "image-missing")
             implicitSize: parent.height * 0.8
 
+            // Themed placeholder instead of the broken-image glyph when the
+            // desktop entry has no resolvable icon string.
+            MaterialIcon {
+                anchors.fill: parent
+                visible: (root.modelData?.icon ?? "") === ""
+                text: "web_asset"
+                color: Colours.palette.m3onSurfaceVariant
+            }
+
             anchors.verticalCenter: parent.verticalCenter
         }
 

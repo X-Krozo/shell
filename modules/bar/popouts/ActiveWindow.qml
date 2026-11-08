@@ -28,14 +28,23 @@ Item {
             anchors.right: parent.right
             spacing: Tokens.spacing.medium
 
-            IconImage {
-                id: icon
+                IconImage {
+                    id: icon
 
-                asynchronous: true
-                Layout.alignment: Qt.AlignVCenter
-                implicitSize: details.implicitHeight
-                source: Icons.getAppIcon(Hypr.activeToplevel?.lastIpcObject.class ?? "", "image-missing")
-            }
+                    asynchronous: true
+                    Layout.alignment: Qt.AlignVCenter
+                    implicitSize: details.implicitHeight
+                    source: Icons.getAppIcon(Hypr.activeToplevel?.lastIpcObject.class ?? "", "image-missing")
+
+                    // Themed placeholder instead of the broken-image glyph for
+                    // classes with no desktop entry.
+                    MaterialIcon {
+                        anchors.fill: parent
+                        visible: parent.source === ""
+                        text: "web_asset"
+                        color: Colours.palette.m3onSurfaceVariant
+                    }
+                }
 
             ColumnLayout {
                 id: details
