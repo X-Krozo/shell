@@ -20,7 +20,11 @@ Item {
     readonly property real maxMagnitude: (width - root.coverSize) / 2 - spacing
 
     ServiceRef {
-        service: Audio.cava
+        // Only hold the analyzer alive while the dashboard is actually on
+        // screen: a permanent ref (the tabs-load-once change) made cava + the
+        // PipeWire capture run 24/7, and their per-tick binding churn starved
+        // the shell's own animations (bar slide / panel blobs).
+        service: root.visible ? Audio.cava : null
     }
 
     Shape {

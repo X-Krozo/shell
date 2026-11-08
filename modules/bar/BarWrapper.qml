@@ -104,7 +104,12 @@ Item {
         width: root.contentThickness
         height: root.contentThickness
 
-        active: root.shouldBeVisible
+        // Keep the bar content loaded across fullscreen toggles: a
+        // shouldBeVisible-driven Loader destroyed and re-created the whole bar
+        // (workspaces app icons, tray icons, os logo) on every toggle, and each
+        // re-creation synchronously re-decoded those PNGs on the main thread —
+        // starving exactly the shell-side animations users perceive as judder.
+        active: !root.disabled
 
         sourceComponent: Bar {
             screen: root.screen

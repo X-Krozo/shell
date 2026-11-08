@@ -140,17 +140,15 @@ FocusScope {
                         required property int index
                         required property var modelData
 
+                        // Tabs load once and stay loaded (the data services behind
+                        // them run shell-wide regardless, so an idle tab costs only
+                        // its scene-graph items): reopening the dashboard is then
+                        // instant instead of rebuilding the current tab every open.
+                        active: true
+
                         Layout.alignment: Qt.AlignTop
 
                         sourceComponent: modelData.component
-
-                        Component.onCompleted: active = Qt.binding(() => {
-                            if (index === view.currentIndex)
-                                return true;
-                            const vx = Math.floor(view.visibleArea.xPosition * view.contentWidth);
-                            const vex = Math.floor(vx + view.visibleArea.widthRatio * view.contentWidth);
-                            return (vx >= x && vx <= x + implicitWidth) || (vex >= x && vex <= x + implicitWidth);
-                        })
                     }
                 }
             }
