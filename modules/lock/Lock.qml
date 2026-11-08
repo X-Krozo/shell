@@ -165,4 +165,22 @@ Scope {
         repeat: false
         onTriggered: Quickshell.execDetached(root.suspendCommand)
     }
+
+    // A second requestLock(true) racing the first re-arms this timer INSIDE
+    // the ~2s lock window (idle timeout + lid close in the same breath); if
+    // logind freezes userspace before it fires, the timer survives S3
+    // (CLOCK_MONOTONIC pauses) and fires ~2s into the next wake — the
+    // instant-re-suspend-on-wake bug. Kill it at both ends of a sleep.
+    Connections {
+        // qmllint disable detached-signals
+        function onAboutToSleep(): void {
+            suspendTimer.stop();
+        }
+
+        function onResumed(): void {
+            suspendTimer.stop();
+        }
+
+        target: SessionManager
+    }
 }
