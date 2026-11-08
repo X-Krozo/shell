@@ -7,7 +7,7 @@ import Quickshell.Io
 // Controls a Wi-Fi hotspot that shares the current Wi-Fi uplink with a phone.
 // The heavy lifting lives in the root-owned helper /usr/local/bin/caelestia-hotspot
 // (allowed passwordlessly via /etc/sudoers.d/caelestia-hotspot), so this only
-// shells out to `sudo -n <helper> start|stop|status`.
+// shells out to `sudo -n <helper> start|stop|sync`.
 Singleton {
     id: root
 
@@ -17,15 +17,30 @@ Singleton {
     property bool busy: false
     property string lastError: ""
 
+    // Guards against a sync that started before an action finishing after it:
+    // every action bumps `generation`, and refresh() tags the sync it starts with
+    // the current value. A sync whose tag no longer matches was observed before
+    // the action and its result is no longer ground truth.
+    property int generation: 0
+    property int syncGeneration: 0
+    property bool pendingRefresh: false
+
     function refresh(): void {
-        if (!busy)
-            statusProc.running = true;
+        if (busy || statusProc.running) {
+            pendingRefresh = true;
+            return;
+        }
+
+        pendingRefresh = false;
+        syncGeneration = generation;
+        statusProc.running = true;
     }
 
     function setEnabled(on: bool): void {
         if (busy || on === enabled)
             return;
 
+        generation++;
         busy = true;
         lastError = "";
         actionProc.command = ["sudo", "-n", root.helper, on ? "start" : "stop"];
@@ -39,16 +54,41 @@ Singleton {
     Process {
         id: statusProc
 
-        command: ["sudo", "-n", root.helper, "status"]
+        // `sync` reports hotspot state AND re-follows the uplink: if the wifi
+        // changed networks while the AP ran, the helper rebuilds it on the new
+        // channel (ip: phones blip a few seconds, then reassociate with the
+        // new uplink behind the same hotspot).
+        command: ["sudo", "-n", root.helper, "sync"]
 
         stdout: StdioCollector {
             id: statusOut
         }
 
+        stderr: StdioCollector {
+            id: statusErr
+        }
+
         onExited: code => { // qmllint disable signal-handler-parameters
             Qt.callLater(() => {
-                if (code === 0)
-                    root.enabled = statusOut.text.trim() === "on";
+                if (syncGeneration === generation) {
+                    const was = root.enabled;
+                    if (code === 0)
+                        root.enabled = statusOut.text.trim() === "on";
+
+                    // A helper error (e.g. a rebuild whose start failed) is our
+                    // best explanation for the state: keep it visible until the
+                    // state moves on its own or the user acts (setEnabled clears).
+                    const errMsg = statusErr.text.trim();
+                    if (errMsg !== "")
+                        root.lastError = errMsg;
+                    else if (root.enabled !== was)
+                        root.lastError = "";
+                }
+
+                // Drain a refresh that was skipped because this sync was still
+                // running (or an action was in progress).
+                if (root.pendingRefresh)
+                    root.refresh();
             });
         }
     }
@@ -64,8 +104,10 @@ Singleton {
 
         onExited: code => { // qmllint disable signal-handler-parameters
             Qt.callLater(() => {
-                root.busy = false;
+                // Set lastError before busy so observers of onBusyChanged can
+                // rely on it reflecting the completed action.
                 root.lastError = code === 0 ? "" : actionErr.text.trim();
+                root.busy = false;
                 refreshTimer.restart();
             });
         }
