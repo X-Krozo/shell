@@ -106,6 +106,39 @@ Singleton {
         return stream.properties["application.name"] || stream.description || stream.name || Tr.trCtx("Unknown application", "unknown application audio stream");
     }
 
+    // Window-class style matching: identity, prefix/contains.
+
+    function namesMatch(a: string, b: string): bool {
+        const la = (a ?? "").toLowerCase();
+        const lb = (b ?? "").toLowerCase();
+        if (!la || !lb)
+            return la === lb;
+        return la === lb || la.startsWith(lb) || lb.startsWith(la) || la.includes(lb) || lb.includes(la);
+    }
+
+    function isAudioAppClass(className: string): bool {
+        return root.knownStreamApps.some(n => namesMatch(n, className));
+    }
+
+    // Apps proven audio-capable this session (a playback stream connected at
+    // least once). The volume dock keeps a GHOST slider for these while one of
+    // their windows is open but their stream is disconnected (deep-silenct
+    // browsers, players between tracks) — seeded from Hyprland window classes
+    // via namesMatch, and pruned when neither a stream nor a window remains.
+    property list<string> knownStreamApps: []
+
+    // Per-app remembered volume: ghost sliders read it, and a reconnecting
+    // stream gets its remembered value reapplied on (re)connect.
+    property var streamVolumes: ({})
+
+    function getGhostVolume(name: string): real {
+        return root.streamVolumes[name] ?? 1.0;
+    }
+
+    function setGhostVolume(name: string, newVolume: real): void {
+        root.streamVolumes = Object.assign({}, root.streamVolumes, { [name]: Math.max(0, Math.min(1, newVolume)) });
+    }
+
     function getAppStream(appName: string): PwNode {
         if (!appName)
             return null;
@@ -157,10 +190,40 @@ Singleton {
                     newSinks.push(node);
                 else if (node.audio)
                     newSources.push(node);
-            } else if (node.audio) {
+            // Volumes are per-playback-stream. NOTE: quickshell does not carry
+            // "media.class" in node.properties (reads undefined), so capture
+            // streams are excluded by name — only the shell's own cava capture
+            // ("caelestia-shell") would otherwise pollute this list.
+            } else if (node.audio && (node.name ?? "") !== "caelestia-shell") {
                 newStreams.push(node);
             }
         }
+
+        // Ghost-slider bookkeeping: remember audio-capable apps, reapply the
+        // remembered volume when a stream (re)connects, and prune names once
+        // neither a stream nor an open window of the app remains.
+        const newNames = newStreams.map(s => getStreamName(s)).filter(n => !!n);
+        const oldNames = root.streams.map(s => getStreamName(s));
+        for (const name of newNames)
+            if (!root.knownStreamApps.includes(name))
+                root.knownStreamApps = [...root.knownStreamApps, name];
+        for (const stream of newStreams) {
+            const name = getStreamName(stream);
+            if (name && !oldNames.includes(name) && name in root.streamVolumes)
+                setStreamVolume(stream, root.streamVolumes[name]);
+        }
+
+        const windowClasses = Hypr.toplevels.values.map(t => String(t.lastIpcObject?.class ?? ""));
+        root.knownStreamApps = root.knownStreamApps.filter(name => {
+            return newNames.includes(name) || windowClasses.some(c => namesMatch(name, c));
+        });
+        const snapshot = Object.assign({}, root.streamVolumes);
+        for (const stream of newStreams) {
+            const name = getStreamName(stream);
+            if (name)
+                snapshot[name] = getStreamVolume(stream);
+        }
+        root.streamVolumes = snapshot;
 
         root.sinks = newSinks;
         root.sources = newSources;
@@ -226,6 +289,13 @@ Singleton {
     IpcHandler {
         function cycleOutput(): void {
             root.cycleNextAudioOutput();
+        }
+
+        // Debug: list the dock's playback-view rows (label + stream/ghost);
+        // remove once the stream/ghost plumbing has shaken down.
+        function rows(): string {
+            return root.streams.map(s => `stream: ${getStreamName(s)} (client FS target ${s.properties["media.class"] ?? "?"})`)
+                .concat(root.knownStreamApps.map(n => `known: ${n}`)).join("\n");
         }
 
         target: "audio"

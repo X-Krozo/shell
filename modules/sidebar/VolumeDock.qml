@@ -24,7 +24,7 @@ Item {
 
     readonly property string hoveredName: {
         const delegate = hoveredIndex >= 0 ? sliders.itemAt(hoveredIndex) : null;
-        return delegate?.modelData ? Audio.getStreamName(delegate.modelData) ?? "" : "";
+        return delegate?.modelData?.label ?? "";
     }
 
     // Hold the last label while the pill fades. Clearing hover would otherwise
@@ -104,6 +104,8 @@ Item {
 
     // How far the pill's bottom edge sits BELOW the dock body's top edge:
     // positive tucks the label down onto the drawer's shoulder.
+    // How far the pill's bottom edge sits BELOW the dock body's top edge:
+    // positive tucks the label down onto the drawer's shoulder.
     readonly property real tooltipDrop: 1
 
     // Drawer glass showing around the label slot — how much taller the
@@ -145,7 +147,7 @@ Item {
             spacing: Tokens.spacing.medium
 
             StyledText {
-                visible: Audio.streams.length === 0
+                visible: root.rows.length === 0
                 Layout.alignment: Qt.AlignCenter
                 text: qsTr("No apps")
                 color: Colours.palette.m3outline
@@ -155,24 +157,39 @@ Item {
             Repeater {
                 id: sliders
 
-                model: Audio.streams
+                model: root.rows
 
                 delegate: ColumnLayout {
                     id: column
 
-                    required property PwNode modelData
+                    // One per app: either a real playback stream ({label,
+                    // stream}) or a GHOST row for a quiet-but-audio-capable
+                    // app's window ({label, stream: null}) — the ghost's
+                    // remembered volume reapplies on stream reconnect.
+                    required property var modelData
                     required property int index
+
+                    readonly property string label: modelData.label
+                    readonly property PwNode stream: modelData.stream
 
                     spacing: Tokens.spacing.extraSmall
 
                     // Literal copy of the OSD slider block (osd/Content.qml)
                     CustomMouseArea {
+                        function currentVolume(): real {
+                            return column.stream ? Audio.getStreamVolume(column.stream) : Audio.getGhostVolume(column.label);
+                        }
+
                         function onWheel(event: WheelEvent) {
-                            const current = Audio.getStreamVolume(column.modelData);
+                            let target = currentVolume();
                             if (event.angleDelta.y > 0)
-                                Audio.setStreamVolume(column.modelData, Math.min(1.0, current + GlobalConfig.services.audioIncrement));
+                                target = Math.min(1, target + GlobalConfig.services.audioIncrement);
                             else if (event.angleDelta.y < 0)
-                                Audio.setStreamVolume(column.modelData, Math.max(0, current - GlobalConfig.services.audioIncrement));
+                                target = Math.max(0, target - GlobalConfig.services.audioIncrement);
+                            if (column.stream)
+                                Audio.setStreamVolume(column.stream, target);
+                            Audio.setGhostVolume(column.label, target);
+                            hideTimer.restart();
                         }
 
                         Layout.alignment: Qt.AlignHCenter
@@ -185,11 +202,13 @@ Item {
                             objectName: "appvol"
                             anchors.fill: parent
 
-                            icon: Icons.getVolumeIcon(value, column.modelData?.audio?.muted ?? false)
-                            value: column.modelData?.audio?.volume ?? 0
-                            externalValue: column.modelData?.audio?.volume ?? 0
+                            icon: Icons.getVolumeIcon(value, column.stream ? column.stream.audio?.muted ?? false : false)
+                            value: column.stream ? Audio.getStreamVolume(column.stream) : Audio.getGhostVolume(column.label)
+                            externalValue: column.stream ? Audio.getStreamVolume(column.stream) : Audio.getGhostVolume(column.label)
                             onMoved: {
-                                Audio.setStreamVolume(column.modelData, value);
+                                if (column.stream)
+                                    Audio.setStreamVolume(column.stream, value);
+                                Audio.setGhostVolume(column.label, value);
                                 hideTimer.restart();
                             }
                             onHoveredChanged: {
@@ -201,26 +220,79 @@ Item {
                         }
                     }
 
-                    Image {
+                    // Icon of the stream's app; themed music note when the
+                    // stream has no desktop entry (CLI tools etc.). Slots are
+                    // same-size siblings so layout never jumps between the two.
+                    Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: Tokens.sizes.osd.sliderWidth * 0.55
                         Layout.preferredHeight: Tokens.sizes.osd.sliderWidth * 0.55
-                        source: Icons.getAppIcon(Audio.getStreamName(column.modelData), "image-missing")
-                        fillMode: Image.PreserveAspectFit
-                        asynchronous: true
+
+                        readonly property string appIcon: Icons.getAppStreamIcon(column.label)
+
+                        Image {
+                            anchors.fill: parent
+                            fillMode: Image.PreserveAspectFit
+                            asynchronous: true
+                            visible: parent.appIcon !== ""
+                            source: parent.appIcon
+                        }
+
+                        MaterialIcon {
+                            anchors.fill: parent
+                            visible: parent.appIcon === ""
+                            text: "music_note"
+                            color: Colours.palette.m3onSurfaceVariant
+                            fontStyle: Tokens.font.icon.medium
+                            fill: 1
+                        }
                     }
                 }
             }
         }
     }
 
+    // Real playback streams first, then GHOST rows: one per active window of
+    // an audio-capable app (remembered the first time any of its streams
+    // connected) whose stream is currently disconnected. Ghosts die with their
+    // window (binding on Hypr.toplevels) and receive the remembered volume
+    // once the app's stream reconnects.
+    readonly property var rows: {
+        const list = [];
+        const seen = [];
+        for (const stream of Audio.streams) {
+            const label = Audio.getStreamName(stream);
+            list.push({ label: label, stream: stream });
+            seen.push(label.toLowerCase());
+        }
+        for (const toplevel of Hypr.toplevels.values) {
+            const className = String(toplevel.lastIpcObject?.class ?? "");
+            if (!className || !Audio.isAudioAppClass(className))
+                continue;
+            if (Audio.getAppStream(className))
+                continue; // a real stream row already covers this app
+            const label = className.split(/[ ._-]/)[0];
+            if (seen.some(s => s === label.toLowerCase()))
+                continue;
+            list.push({ label: label, stream: null });
+            seen.push(label.toLowerCase());
+        }
+        return list;
+    }
+
     property int hoveredIndex: -1
+
 
     // Hover pill mirrors the power-menu tooltip: same paddings, font and
     // scale-in. Compact fixed-width slot — deliberately narrower than the dock
     // body (and never wider, so it can't hang off the panel over the
     // wallpaper). It never follows the hovered app name, so nothing about the
     // panel resizes per app; a name that doesn't fit is cut with an ellipsis.
+    // Horizontal inset the label gives up on each side of the fixed pill:
+    // same pill dimensions, tighter text area (long names overflow sooner,
+    // feeding the marquee).
+    readonly property real slotInset: Tokens.spacing.small
+
     readonly property real tooltipWidth: Math.min(110, Math.max(0, body.width - Tokens.padding.extraSmall * 2))
 
     StyledRect {
@@ -242,6 +314,7 @@ Item {
         color: Colours.tPalette.m3surfaceContainer
         radius: Tokens.rounding.large
         transformOrigin: Item.Bottom
+        clip: true
 
         Behavior on opacity {
             Anim {}
@@ -253,20 +326,85 @@ Item {
             }
         }
 
-        // No measurer: the slot width is fixed (see tooltipWidth), so the
-        // label lays itself out against it on a single line, eliding whatever
-        // doesn't fit. One source (the label) means text and pill can never
-        // disagree.
-        StyledText {
-            id: label
+        // Text window: the label only ever renders inside the padded slot, so
+        // the pill's left/right padding keeps a constant visible gap at every
+        // point of the marquee — including mid-slide and at the pause.
+        Item {
+            clip: true
 
-            anchors.centerIn: parent
-            width: root.tooltipWidth
-            elide: Text.ElideRight
-            horizontalAlignment: Text.AlignHCenter
-            text: root.pillText
-            color: Colours.palette.m3onSurface
-            font: Tokens.font.body.builders.medium.scale(0.75).build()
+            width: label.slotWidth
+            height: parent.height
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+
+            // No measurer: the slot width is fixed (see tooltipWidth), so the
+            // label lays itself out against it on a single line. Names longer
+            // than the slot get the usual marquee: slide right-to-left until
+            // the end shows, pause, warp back, repeat; short names stay
+            // dead-centre.
+            StyledText {
+                id: label
+
+                readonly property real slotWidth: root.tooltipWidth - root.slotInset * 2
+                readonly property bool overflow: implicitWidth > slotWidth
+                readonly property real overflowWidth: Math.max(0, implicitWidth - slotWidth)
+
+                property real slideOffset: 0
+
+                width: implicitWidth
+                // Static: centred in the window; sliding: the left edge walks
+                // from the window's left boundary rightward by slideOffset
+                // until its right end sits on the right boundary.
+                x: overflow ? -slideOffset : (parent.width - width) / 2
+                anchors.verticalCenter: parent.verticalCenter
+                elide: Text.ElideNone
+                horizontalAlignment: Text.AlignHCenter
+                text: root.pillText
+                color: Colours.palette.m3onSurface
+                font: Tokens.font.body.builders.medium.scale(0.75).build()
+
+                SequentialAnimation {
+                    id: marquee
+
+                    loops: Animation.Infinite
+                    running: tooltip.visible && label.overflow
+
+                    // Lead-in hold: let the name be read before the slide
+                    // starts (also applies at the top of every loop).
+                    PauseAnimation {
+                        duration: 800
+                    }
+                    PropertyAnimation {
+                        target: label
+                        property: "slideOffset"
+                        from: 0
+                        to: label.overflowWidth
+                        duration: Math.round(label.overflowWidth * 1000 / 30) // ~30 px/s
+                        easing.type: Easing.Linear
+                    }
+                    PauseAnimation {
+                        duration: 700
+                    }
+                    onRunningChanged: {
+                        if (!running)
+                            label.slideOffset = 0
+                    }
+                }
+
+                // A fresh latched label (or different overflow width) must start
+                // its slide from the left edge, not resume mid-flight.
+                property string restartKey: root.pillText + "|" + overflowWidth
+
+                onRestartKeyChanged: {
+                    if (marquee.running)
+                        marquee.restart();
+                }
+
+                function debugState(): string {
+                    return `label=${root.pillText} iw=${implicitWidth} slot=${slotWidth} overflow=${overflow} marquee=${marquee.running} x=${x}`;
+                }
+
+            }
         }
     }
 }
