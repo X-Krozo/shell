@@ -20,15 +20,20 @@ StyledRect {
 
     property bool expanded
 
-    transformOrigin: Item.Center
-    // Rise instead of scale: translation never resamples, so icons stay
-    // crisp (a 1.06 scale stretches rest-rasterized pixels).
-    transform: Translate {
-        y: bar.hoveredEntry === "tray" ? -3 : 0
+    // Edge-zoom, X axis only (see Workspaces.qml): the pill's left and right
+    // edges slide outward on hover while the top and bottom never move, so it
+    // can't read as a rise. The Grid and expand chevron cancel the X factor.
+    property real zoom: bar.hoveredEntry === "tray" ? 1.06 : 1
 
-        Behavior on y {
-            Anim {}
-        }
+    Behavior on zoom {
+        Anim {}
+    }
+
+    transform: Scale {
+        xScale: root.zoom
+        yScale: 1
+        origin.x: root.width / 2
+        origin.y: root.height / 2
     }
 
     readonly property real nonAnimWidth: {
@@ -63,6 +68,17 @@ StyledRect {
 
     Grid {
         id: layout
+
+        // Cancel the root's X-only edge zoom (see Workspaces.qml): net X = 1
+        // and Y = 1 every frame, so tray pixmaps are never resampled; only
+        // the pill background scales. The Grid is edge-anchored, so the
+        // inverse pivot is the root's centre mapped into this Grid's coords.
+        transform: Scale {
+            xScale: 1 / root.zoom
+            yScale: 1
+            origin.x: root.width / 2 - layout.x
+            origin.y: root.height / 2 - layout.y
+        }
 
         anchors.horizontalCenter: root.horizontal ? undefined : parent.horizontalCenter
         anchors.verticalCenter: root.horizontal ? parent.verticalCenter : undefined
@@ -112,12 +128,22 @@ StyledRect {
         }
     }
 
-    Loader {
-        id: expandIcon
+        Loader {
+            id: expandIcon
 
-        asynchronous: true
+            asynchronous: true
 
-        anchors.horizontalCenter: root.horizontal ? undefined : parent.horizontalCenter
+            // Same X-only inverse-zoom cancel as the Grid above, pivoted at
+            // the root centre so the chevron stays pixel-crisp while the pill
+            // grows.
+            transform: Scale {
+                xScale: 1 / root.zoom
+                yScale: 1
+                origin.x: root.width / 2 - expandIcon.x
+                origin.y: root.height / 2 - expandIcon.y
+            }
+
+            anchors.horizontalCenter: root.horizontal ? undefined : parent.horizontalCenter
         anchors.verticalCenter: root.horizontal ? parent.verticalCenter : undefined
         anchors.right: root.horizontal ? parent.right : undefined
         anchors.bottom: root.horizontal ? undefined : parent.bottom

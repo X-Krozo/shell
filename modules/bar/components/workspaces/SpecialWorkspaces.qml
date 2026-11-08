@@ -72,15 +72,19 @@ Item {
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
         onClicked: event => {
+            // Close the special workspace actually showing on this monitor
+            // (magic or otherwise); clicking a listed pill toggles IT.
+            const closeName = Hypr.trimWsName(root.monitor?.lastIpcObject.specialWorkspace?.name ?? "");
+            const fallback = closeName || "magic";
             const ws = (layout.childAt(event.x, event.y) as Workspace)?.ws; // qmllint disable incompatible-type
             if (ws) {
                 const match = Hypr.workspaces.values.find(w => w.id === ws);
                 if (match)
                     Hypr.toggleSpecial(Hypr.trimWsName(match.name));
                 else
-                    Hypr.toggleSpecial("special");
+                    Hypr.toggleSpecial(fallback);
             } else {
-                Hypr.toggleSpecial("special");
+                Hypr.toggleSpecial(fallback);
             }
         }
     }

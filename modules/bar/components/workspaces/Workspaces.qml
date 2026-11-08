@@ -68,15 +68,20 @@ StyledClippingRect {
 
     property real blur: onSpecial ? 1 : 0
 
-    transformOrigin: Item.Center
-    // No rise while the special overlay covers this (it would animate hidden content).
-    // Rise instead of scale: translation never resamples, so indicators stay crisp.
-    transform: Translate {
-        y: bar.hoveredEntry === "workspaces" && !root.onSpecial ? -3 : 0
+    // Edge-zoom, X axis only: on hover the pill's left and right edges slide
+    // outward while the top and bottom edges never move — no vertical motion,
+    // so it can't read as a rise. The factor eases via zoom's Behavior below.
+    property real zoom: bar.hoveredEntry === "workspaces" && !root.onSpecial ? 1.06 : 1
 
-        Behavior on y {
-            Anim {}
-        }
+    Behavior on zoom {
+        Anim {}
+    }
+
+    transform: Scale {
+        xScale: root.zoom
+        yScale: 1
+        origin.x: root.width / 2
+        origin.y: root.height / 2
     }
 
     function workspaceIndex(id: int): int {
@@ -99,7 +104,17 @@ StyledClippingRect {
 
     Item {
         anchors.fill: parent
-        scale: root.onSpecial ? 0.8 : 1
+        // Cancel the root's X-only edge zoom: the net transform on this
+        // subtree is identity per axis every frame (mid-animation included),
+        // so glyphs and dots rasterize native and nothing is resampled. The
+        // vertical is pinned to exactly 1. This item is anchors.fill, so its
+        // own centre coincides with the root's — pivot at own centre.
+        transform: Scale {
+            xScale: (root.onSpecial ? 0.8 : 1) / root.zoom
+            yScale: root.onSpecial ? 0.8 : 1
+            origin.x: root.width / 2
+            origin.y: root.height / 2
+        }
         opacity: root.onSpecial ? 0.5 : 1
         visible: !root.fullscreen
 
@@ -219,7 +234,10 @@ StyledClippingRect {
                 if (Hypr.activeWsId !== ws)
                     Hypr.focusWorkspace(ws);
                 else
-                    Hypr.toggleSpecial("special");
+                    // Main scratchpad, matching the SUPER+Z binding and the
+                    // send-to-scratchpad script (special:magic) — the fallback
+                    // "special" would open the unconfigured plain gap.
+                    Hypr.toggleSpecial("magic");
             }
         }
 

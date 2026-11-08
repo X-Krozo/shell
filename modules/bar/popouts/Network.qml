@@ -38,16 +38,31 @@ ColumnLayout {
         Layout.preferredHeight: visible ? implicitHeight : 0
         label: Tr.trCtx("Enabled", "toggle label")
         checked: Nmcli.wifiEnabled
-        toggle.onToggled: Nmcli.enableWifi(checked)
+        toggle.onToggled: Nmcli.enableWifi(!Nmcli.wifiEnabled)
     }
 
     Toggle {
+        id: hotspotToggle
+
         visible: root.view === "wireless"
         Layout.preferredHeight: visible ? implicitHeight : 0
-        label: Tr.tr("Hotspot")
+        label: Tr.trCtx("Hotspot", "toggle label")
         checked: Hotspot.enabled
-        toggle.disabled: Hotspot.busy
-        toggle.onToggled: Hotspot.setEnabled(checked)
+        // Doomed start: wifi off. Keep it clickable while the hotspot itself is
+        // on though, so it can still be switched off without re-enabling wifi.
+        toggleDisabled: Hotspot.busy || (!Nmcli.wifiEnabled && !Hotspot.enabled)
+        toggle.onToggled: Hotspot.setEnabled(!Hotspot.enabled)
+    }
+
+    StyledText {
+        visible: root.view === "wireless" && Hotspot.lastError !== ""
+        Layout.preferredHeight: visible ? implicitHeight : 0
+        Layout.rightMargin: Tokens.padding.extraSmall
+        Layout.fillWidth: true
+        text: Hotspot.lastError
+        color: Colours.palette.m3error
+        font: Tokens.font.body.small
+        wrapMode: Text.Wrap
     }
 
     StyledText {
@@ -385,10 +400,39 @@ ColumnLayout {
         target: root.popouts
     }
 
+    Connections {
+        function onBusyChanged(): void {
+            // On failure the logical state never changes, so nothing updates the
+            // switch; snap it back to the real state. On success `onCheckedChanged`
+            // realigns it when the refresh reports the new state.
+            if (!Hotspot.busy && Hotspot.lastError !== "")
+                hotspotToggle.syncSwitch();
+        }
+
+        target: Hotspot
+    }
+
     component Toggle: RowLayout {
         required property string label
-        property alias checked: toggle.checked
+        // Logical state. Deliberately NOT aliased to the switch: interacting
+        // with a Qt switch writes its `checked`, which permanently breaks any
+        // `checked` binding. The switch is instead driven imperatively from this
+        // property, so bindings from the services above survive user interaction.
+        property bool checked
+        property bool toggleDisabled: false
+        signal toggled()
+
+        // Attached handle for `toggle.onToggled:` at the instnaces: aliasing
+        // the switch lets callers wire its toggled signal without ever
+        // touching `toggle.checked` imperatively.
         property alias toggle: toggle
+
+        function syncSwitch(): void {
+            toggle.checked = checked;
+        }
+
+        onCheckedChanged: toggle.checked = checked
+        Component.onCompleted: toggle.checked = checked
 
         Layout.fillWidth: true
         Layout.rightMargin: Tokens.padding.extraSmall
@@ -401,6 +445,9 @@ ColumnLayout {
 
         StyledSwitch {
             id: toggle
+
+            disabled: parent.toggleDisabled
+            onToggled: parent.toggled()
         }
     }
 }

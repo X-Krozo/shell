@@ -17,15 +17,20 @@ StyledRect {
     property color colour: Colours.palette.m3secondary
     readonly property alias items: iconColumn
 
-    transformOrigin: Item.Center
-    // Rise instead of scale: translation never resamples, so icons and
-    // text stay crisp (a 1.06 scale stretches rest-rasterized pixels).
-    transform: Translate {
-        y: bar.hoveredEntry === "statusIcons" ? -3 : 0
+    // Edge-zoom, X axis only (see Workspaces.qml): the pill's left and right
+    // edges slide outward on hover while the top and bottom never move, so it
+    // can't read as a rise. The icon column cancels the X factor exactly.
+    property real zoom: bar.hoveredEntry === "statusIcons" ? 1.06 : 1
 
-        Behavior on y {
-            Anim {}
-        }
+    Behavior on zoom {
+        Anim {}
+    }
+
+    transform: Scale {
+        xScale: root.zoom
+        yScale: 1
+        origin.x: root.width / 2
+        origin.y: root.height / 2
     }
 
     readonly property int spacing: Tokens.spacing.medium / 2
@@ -62,6 +67,18 @@ StyledRect {
 
     GridLayout {
         id: iconColumn
+
+        // Cancel the root's X-only edge zoom (see Workspaces.qml): net X = 1
+        // and Y = 1 every frame (mid-animation included), so glyphs rasterize
+        // native and nothing is resampled; only the pill background carries
+        // the zoom. Anchored-centred, so its own centre coincides with the
+        // root's — pivot at own centre.
+        transform: Scale {
+            xScale: 1 / root.zoom
+            yScale: 1
+            origin.x: iconColumn.width / 2
+            origin.y: iconColumn.height / 2
+        }
 
         // Only one orientation's anchors resolve, the others are undefined
         // qmllint disable Quick.anchor-combinations
