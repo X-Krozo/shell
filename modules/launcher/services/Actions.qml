@@ -50,7 +50,16 @@ Searcher {
                 Colours.setMode(command[1]);
             } else {
                 list.screenState.launcher = false;
-                if (!SessionManager.exec(command))
+                // Single-word suspend-family actions route through the lock
+                // IPC so the full lock sequence (surface, entry animation)
+                // plays before sleep — SessionManager would suspend instantly
+                // with the desktop still visible. Other actions stay on
+                // SessionManager (systemctl/loginctl aliasing) or execDetached.
+                const lockCommand = command.length === 1
+                    && ["suspend", "suspendthenhibernate", "hibernate"].includes(command[0].replace(/-|_/g, "").toLowerCase());
+                if (lockCommand)
+                    Quickshell.execDetached(["qs", "-c", "caelestia", "ipc", "call", "lock", "lockThen", command[0]]);
+                else if (!SessionManager.exec(command))
                     Quickshell.execDetached(command);
             }
         }

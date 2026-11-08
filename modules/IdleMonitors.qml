@@ -27,10 +27,18 @@ Scope {
         if (!action)
             return;
 
+        // Suspend-family specifiers route through the lock so the lock surface
+        // and its entry animation complete before sleep (SessionManager would
+        // suspend instantly — see Lock.requestSuspend).
+        const spec = Array.isArray(action) ? action[0] : (typeof action === "string" ? action : null);
+        const lockCommand = typeof spec === "string" ? root.lock.suspendCommandFor(spec) : null;
+
         if (action === "lock")
-            lock.requestLock(false);
+            root.lock.requestLock(false);
         else if (action === "unlock")
-            lock.lock.locked = false;
+            root.lock.lock.locked = false;
+        else if (lockCommand)
+            root.lock.requestSuspend(lockCommand);
         else if (typeof action === "string")
             Hypr.dispatch(Hypr.usingLua && ["dpms off", "dpms on"].includes(action) ? `hl.dsp.dpms({ action = "${action === "dpms off" ? "disable" : "enable"}" })` : action);
         else if (!SessionManager.exec(action))

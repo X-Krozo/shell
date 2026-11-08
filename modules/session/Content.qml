@@ -75,7 +75,10 @@ Item {
 
         icon: "bedtime"
         tooltip: "Sleep"
-        command: ["suspend"]
+        // Sleep through the lock so the full lock sequence (surface, entry
+        // animation) completes before system suspend — direct SessionManager/
+        // logind suspend sleeps while the desktop is still visible.
+        command: ["qs", "-c", "caelestia", "ipc", "call", "lock", "lockAndSuspend"]
 
         KeyNavigation.up: lock
         KeyNavigation.down: logout
